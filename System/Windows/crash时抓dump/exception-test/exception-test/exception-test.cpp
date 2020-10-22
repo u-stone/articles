@@ -8,6 +8,7 @@
 #include <crtdbg.h>
 #include <exception>
 #include <new.h>
+#include <iostream>
 
 #define MAX_LOADSTRING 100
 
@@ -231,6 +232,29 @@ LONG MyUnhandledExceptionFilter(_EXCEPTION_POINTERS *ExceptionInfo)
     return EXCEPTION_CONTINUE_SEARCH;
 }
 
+void myInvalidParameterHandler(const wchar_t* expression,
+    const wchar_t* function,
+    const wchar_t* file,
+    unsigned int line,
+    uintptr_t pReserved)
+{
+    //wprintf(L"Invalid parameter detected in function %s."
+    //    L" File: %s Line: %d\n", function, file, line);
+    //wprintf(L"Expression: %s\n", expression);
+
+    // Suppress the abort message， then no popup dialog shown.
+    //_set_abort_behavior(0, _WRITE_ABORT_MSG);
+    //_set_abort_behavior(0, _CALL_REPORTFAULT);
+    abort();
+    wprintf(L"Expression: %s\n", expression);
+}
+
+void term_func() {
+    RaiseException(0x4001, EXCEPTION_NONCONTINUABLE, 0, NULL);
+
+    exit(-1);
+}
+
 class CDerived;
 class CBase
 {
@@ -257,7 +281,11 @@ CBase::~CBase()
 void myPurecallHandler(void)
 {
     printf("In _purecall_handler.");
+
+    /// way 1: exit process directly, no dump caught.
     exit(0);
+    /// way 2: Raise an exception, make an unhandled exception, and cause catch a dump.
+    //RaiseException(0x4000, EXCEPTION_NONCONTINUABLE, 0, NULL);
 }
 
 int coalesced = 0;
@@ -279,7 +307,7 @@ int MyNewHandler(size_t size)
 
 const auto kBigNum = 0x1fffffff;
 int RecurseAlloc() {
-    /// make new failed for the first time.
+    /// make new operation failed for the first time.
     /// show 3 versions of new operation:
 
     /// version 1: process crashed.
@@ -304,6 +332,22 @@ int RecurseAlloc() {
     return 0;
 }
 
+void dummy(int& r) {
+    r += 1;
+}
+void my_terminate() {
+    std::cerr << "my terminate handler";
+    std::exit(0);
+}
+void my_unexpected() {
+    RaiseException(0x4005, EXCEPTION_NONCONTINUABLE, 0, NULL);
+    std::cerr << "my unexpected handler";
+    std::exit(EXIT_FAILURE);
+}
+void function() throw() // no exception in this example, but it could be another spec
+{
+    throw std::exception();
+}
 void FooCode() {
 
     /// Disabling the program crash dialog 
@@ -327,6 +371,8 @@ void FooCode() {
     //-- invalid parameter -- dump not catched
     // Disable the message box for assertions(in debug mode, not in release mode).
     // If not diabled, it will popup dialog : Microsoft Visual C++ Runtime Library -- Debug Assertion Failed!
+    //_invalid_parameter_handler oldHandler;
+    //oldHandler = _set_invalid_parameter_handler(myInvalidParameterHandler);
     //_CrtSetReportMode(_CRT_ASSERT, 0);
     //const char* formatString = NULL;
     //printf(formatString);
@@ -341,7 +387,47 @@ void FooCode() {
     //-- new -- dump catched, and popup nothing no matter for debug/release mode
     // Set the failure handler for new to be MyNewHandler.
     //_set_new_handler(MyNewHandler);
-    RecurseAlloc();
+    //RecurseAlloc();
 
+    //-- Divide by zero! -- dump catched.
+    //int i = 10, j = 0, result = 0;
+    //set_terminate(term_func);
+    //try
+    //{
+    //    throw 1;
+    //    throw "hello";
+
+    //    /// C++ try-catch can not catch the divide-by-zero exception
+    //    /// if want, use __try-__exception SEH code
+    //    result = i / j;
+    //}
+    //catch(int)
+    //{
+    //    /// catch throw 1
+    //    RaiseException(0x4002, EXCEPTION_NONCONTINUABLE, 0, NULL);
+    //}
+    //catch (const char*) {
+    //    /// catch throw "hello"
+    //    RaiseException(0x4003, EXCEPTION_NONCONTINUABLE, 0, NULL);
+    //}
+
+    ///// compiler is so clevel that the following code can not make release mode generate result = i/j asm code.
+    //result++;
+    //dummy(result);
+
+    ///// force compiler to generate result = i/j asm code.
+    //std::cout << "This should never print.\n" << result;
+
+    /// my_unexpected is not called.
+    std::set_unexpected(my_unexpected);
+    try {
+        function();
+    }
+    catch (const std::logic_error&) {
+        RaiseException(0x4004, EXCEPTION_NONCONTINUABLE, 0, NULL);
+    }
+    //catch (const std::exception&) {
+    //    RaiseException(0x4005, EXCEPTION_NONCONTINUABLE, 0, NULL);
+    //}
     /// and more...
 }
