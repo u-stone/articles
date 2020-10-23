@@ -332,6 +332,33 @@ int RecurseAlloc() {
     return 0;
 }
 
+// crt_signal.c
+// compile with: /EHsc /W4
+// Use signal to attach a signal handler to the abort routine
+#include <stdlib.h>
+#include <signal.h>
+
+void SignalHandler(int signal)
+{
+    if (signal == SIGABRT) {
+        RaiseException(0x4006, EXCEPTION_NONCONTINUABLE, 0, NULL);
+    }
+    else {
+        // ...
+    }
+}
+
+int test_signal()
+{
+    typedef void(*SignalHandlerPointer)(int);
+
+    SignalHandlerPointer previousHandler;
+    previousHandler = signal(SIGABRT, SignalHandler);
+
+    /// make SIGABRT signal handler called
+    abort();
+}
+
 void dummy(int& r) {
     r += 1;
 }
@@ -418,16 +445,23 @@ void FooCode() {
     ///// force compiler to generate result = i/j asm code.
     //std::cout << "This should never print.\n" << result;
 
-    /// my_unexpected is not called.
-    std::set_unexpected(my_unexpected);
-    try {
-        function();
-    }
-    catch (const std::logic_error&) {
-        RaiseException(0x4004, EXCEPTION_NONCONTINUABLE, 0, NULL);
-    }
+    /// my_unexpected is not called. and this will make an VC++ style exception(exception code is 0xE06D7376 means 'msc')
+    //std::set_unexpected(my_unexpected);
+    //try {
+    //    function();
+    //}
+    //catch (const std::logic_error&) {
+    //    RaiseException(0x4004, EXCEPTION_NONCONTINUABLE, 0, NULL);
+    //}
     //catch (const std::exception&) {
     //    RaiseException(0x4005, EXCEPTION_NONCONTINUABLE, 0, NULL);
     //}
+
+    //-- SIGABRT signal test --no dump catched, but 
+    // i can set SIGABRT handler to catch the exception.
+    //test_signal();
+
+    std::set_terminate(nullptr);
+    std::terminate();
     /// and more...
 }
