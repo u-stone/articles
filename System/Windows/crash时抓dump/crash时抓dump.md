@@ -36,11 +36,17 @@ Windows系统检测到我们写的程序发生了未处理异常或者其他严�
 - EXCEPTION_CONTINUE_EXECUTION 在异常发生的代码处，继续执行代码，不过有一个修改异常信息的机会。我写的测试代码中，这种处理返回值，最后会在系统的Event Viewer中找到崩溃记录。
 - EXCEPTION_CONTINUE_SEARCH 执行一般的异常处理流程，依赖于[SetErrorMode](https://docs.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-seterrormode)设置的标记 
 
+Windows 10上，我测试下来，自定义未处理异常函数的返回值与SetErrorMode的配合，对系统事件(Event Viewer)中应用程序错误产生记录的对应关系是：
+
+1. 自定义未处理异常返回 EXCEPTION_EXECUTE_HANDLER，设置错误模式为 SetErrorMode(SEM_NOGPFAULTERRORBOX)，生成dump，不产生事件记录。因为这类异常背后的逻辑是程序预知到了这种错误，处理好了，就不需要系统记录了。
+2. 自定义未处理异常返回 EXCEPTION_CONTINUE_EXECUTION，设置错误模式为 SetErrorMode(SEM_NOGPFAULTERRORBOX)，程序卡死无法产生dump和事件记录。卡死的原因是让程序继续执行，但是之前碰到的异常并没有解决，导致无法继续执行。
+3. 自定义未处理异常返回 EXCEPTION_CONTINUE_SEARCH，设置错误模式为 SetErrorMode(SEM_NOGPFAULTERRORBOX)，生成dump，不产生事件记录，但是如果不设置ErrorMode，也就是说ErrorMode为0的话，产生事件记录。
+
 Windows上这个处理过程可以抓取到大多数崩溃。参考资料中的[CrashRpt](http://crashrpt.sourceforge.net/)也使用了这个方法。
 
 ### 那还有小部分呢？
 
-但是SetUnhandledExceptionFilter并不能处理Windows上C\++代码的所有未处理，简单地说是因为CRT有自己的处理逻辑。
+SetUnhandledExceptionFilter并不能处理Windows上C\++代码的所有未处理，简单地说是因为CRT有自己的处理逻辑。
 
 我们C\++代码中常见的异常类型有
 
@@ -61,16 +67,14 @@ void InfiniteFunc(int a) {
 }
 ```
 
-3. 缓存溢出，大数据块写入小数据块，导致内存非法访问
+3. 缓存溢出，大数据块写入小数据块，导致内存非法访问。现在VC\++编译器一般会启用Buffer Security Check : [/GS (Buffer Security Check)](https://docs.microsoft.com/en-us/cpp/build/reference/gs-buffer-security-check?view=vs-2019) 编译选项。
 
-4. 调用C++的纯虚指针
-参考 _get_purecall_handler, _set_purecall_handler的示例代码。
+4. 调用C++的纯虚指针，参考 [_get_purecall_handler, _set_purecall_handler](https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/get-purecall-handler-set-purecall-handler?view=vs-2019) 的示例代码。
 
-5. 内存耗尽，申请内存失败
-*目前的操作系统中由于使用了虚拟内存的技术，一般不会碰到*
+5. 内存耗尽，申请内存失败 *目前的操作系统中由于使用了虚拟内存的技术，一般不会碰到*
 
 6. 非法参数传入C++系统函数
-参考 _set_invalid_parameter_handler, _set_thread_local_invalid_parameter_handler 里面的示例代码。
+参考 [_set_invalid_parameter_handler, _set_thread_local_invalid_parameter_handler](https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/set-invalid-parameter-handler-set-thread-local-invalid-parameter-handler?view=vs-2019) 里面的示例代码。
 
 ```c
 // crt_set_invalid_parameter_handler.c
@@ -139,22 +143,34 @@ CRT错误处理过程可以设置：
 以上主要在 MSDN [Process and Environment Control](https://docs.microsoft.com/en-us/cpp/c-runtime-library/process-and-environment-control?view=vs-2019)查找资料。
 
 C\++信号处理 Signal Handling，也就是C\++中的程序中断机制。通过signal()函数处理。
-ANSI标准中一共有六种，
+
+ANSI标准中一共有六种：
+
 1. SIGABRT Abnormal termination
-2. SIGFPE Floating-point error，当浮点运算出错时由CRT调用，一般情况下不会生成，而是生成一个NaN或者无限大的数字，可以通过_controlfp_s函数打开这个异常。参考 [Floating-Point Exceptions](https://docs.microsoft.com/en-us/windows/win32/debug/floating-point-exceptions)
-3. SIGILL Illegal instruction（*）
-4. SIGINT CTRL+C signal 
-5. SIGSEGV Illegal storage access （*）
-6. SIGTERM Termination request （*）
+2. SIGFPE Floating-point error，当浮点运算出错时由CRT调用，一般情况下不会生成。Windows系统 **默认关闭** 了这个信号，取而代之的是生成一个NaN或者无限大的数字，可以通过_controlfp_s函数打开这个异常。参考 [Floating-Point Exceptions](https://docs.microsoft.com/en-us/windows/win32/debug/floating-point-exceptions)
+3. （*）SIGILL Illegal instruction Windows下 **不产生** 这个信号 
+4. SIGINT CTRL+C signal，  win32程序 **不支持** 这个信号，当CTRL+C中断发生时，Win32系统会生成一个新的线程处理该中断，这样的话，比如一些在unix上的单线程可能会变成多线程，并出现不可知的错误。这里强调了UNIX中的单线程程序，我试了一下及时创建一个最简单的console程序也会有3个线程（一个Main Thread，2个Work Thread），原因参考 Raymond [Why does my single-threaded program have multiple threads?](https://devblogs.microsoft.com/oldnewthing/20191115-00/?p=103102)中提到console application会有线程专门用来“handle and deliver console control notifications”
+5. SIGSEGV Illegal storage access 
+6. （*）SIGTERM Termination request Windows下 **不产生** 这个信号 
 
 *这部分可以参考 msdn [signal](https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/signal?view=vs-2019)函数介绍*
 
-标*的MSDN中提示说Windows NT不会生成，只是为了兼容ANSI；但是如果在主线程中设置了SIGSEGV信号函数，那么就会由CRT而不是SEH设置的SetUnhandledExceptionFilter()过滤函数来调用，并且有一个全局的变量_pxcptinfoptrs包含异常信息。如果是在其他线程的话，异常处理过程是由SEH的SetUnhandledExceptionFilter()过滤函数调用的。
+标*的MSDN中提示说Windows NT不会生成，留着只是为了兼容ANSI。~~但是如果在主线程中设置了SIGSEGV信号函数，那么就会由CRT而不是SEH设置的SetUnhandledExceptionFilter()过滤函数来调用，并且有一个全局的变量_pxcptinfoptrs包含异常信息。如果是在其他线程的话，异常处理过程是由SEH的SetUnhandledExceptionFilter()过滤函数调用的。~~（这部分删除掉是因为我现在(2020.10)没在msdn上找到这个说法，可能是后来有变动，毕竟这篇文档成文早于2010年，之后Windows上的CRT有较大的变化）
 
 除了函数之外，还有编译链接选项上的一些事情。CRT可以以MD（动态链接）和MT（静态链接）的方式编译进模块（exe/DLL）里面。参考：/MT、/MD编译选项，以及可能引起在不同堆中申请、释放内存的问题，/MD, /MT, /LD (Use Run-Time Library)。
 MD的方式时推荐的，多个模块公用一个CRT的DLL库的方式；以MT的方式使用CRT的话，需要把函数写成static，并且使用/NODEFAULTLIB链接标记，链接到所有模块中，还需要每个模块中都注册CRT错误处理过程。
 
-*上面提到这么几种异常也不全，可以参考操作系统的IDT表项看看系统支持哪些中断和异常处理，见后文。*
+上面提到这几种异常也不全，可以参考操作系统的IDT表项看看系统支持哪些中断/异常处理。比如说还有:
+
+- 除零异常
+- 页错误
+- 栈段错误
+- 浮点错误
+- 内存对齐错误
+- SIMD浮点错误
+- 无效TSS
+- 段不存在
+- ...
 
 ## 为什么调试器可以抓到所有崩溃?
 
@@ -423,7 +439,7 @@ extern "C" int __cdecl _seh_filter_exe(
 
 ## CRT, C++ STL, 系统API之间的关系
 
-VC\++提供的C\++标准库实现了标准C99的CRT，并且还做了微软自己的托管代码的实现；所有VC++的CRT实现都支持多线程开发。VC2015重构了CRT实现，提供了一个叫做Universal CRT的库，并且随Win10一起发布。Win10 SDK中带了静态库、动态库和UCRT的头文件。安装VC++的时候带有一个Win10 SDK UCRT的子集，同时VC++2015之后的版本支持任意切换UCRT版本。
+VC\++提供的C\++标准库实现了标准C99的CRT，并且还做了微软自己的托管代码的实现；所有VC++的CRT实现都支持多线程开发。VC2015重构了CRT实现，提供了一个叫做Universal CRT的库，并且随Win10一起发布。Win10 SDK中带了静态库、动态库和UCRT的头文件。安装VC++的时候只带有一个Win10 SDK UCRT的子集，同时VC++2015之后的版本在工程中支持切换任意版本的UCRT。
 
 猜测UCRT应该是为了支持Win10的全平台而重构的。看代码中会发现有x86,x64,ARM等CPU的宏判断，再加上之前版本中有的native code和managed code，VC++的CRT做的比其他版本的要复杂很多了。更多信息参考：[C Run-Time Libraries (CRT)](https://docs.microsoft.com/en-us/cpp/c-runtime-library/crt-library-features?view=vs-2019)
 
@@ -431,7 +447,7 @@ VC\++提供的C\++标准库实现了标准C99的CRT，并且还做了微软自�
 
 [ANSI C、ISO C、Standard C联系与区别](https://zhuanlan.zhihu.com/p/24764902)
 
-而所谓Runtime Library就是系统对编译器做的一层封装。C Runtime Library中调用系统资源的部分底层就是调用了系统的API了，比如_beginthread最终调了Win32 API的CreateThread。
+所谓Runtime Library就是系统对编译器做的一层封装。C Runtime Library中调用系统资源的部分底层就是调用了系统的API了，比如_beginthread最终调了Win32 API的CreateThread。
 
 那么C++ STL与CRT之间的关系呢？可以从STL中的std::terminate函数的实现中看出来：
 
@@ -480,9 +496,9 @@ _STD_END
 
 可以看出STL中与CRT同名的函数调用的是CRT。
 
-下面回顾一下CRT中几个重要的函数。
+## CRT中几个重要的函数
 
-### abort() vs exit() vs terminate()
+### 退出进程的函数： abort() vs exit() vs terminate()
 
 先说一下我电脑Win10上CRT的源码位置：C:\Program Files (x86)\Windows Kits\10\Source\10.0.19041.0\ucrt，注意不在VC++或者VS的路径下了。使用VSCode打开可以搜索想要查找的函数。
 
@@ -655,6 +671,8 @@ extern "C" void __cdecl abort()
 
 ```
 
+由于terminate一定会调用abort，所以只需要设置abort的自定义处理函数就可以截获二者的异常情况了。
+
 #### exit
 
 [exit, _Exit, _exit](https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/exit-exit-exit?view=vs-2019)
@@ -758,7 +776,7 @@ void fn4()
 
 说，abort就像是异常终止程序，也就是说程序无法“挽救”了，并发起一个SIGABRT信号，不论你设置了什么处理函数，都会终止程序；exit是一个正常的退出，比如说遇到错误的输入，但这不是程序的错误。而terminate是报告一个无法处理的异常可以采取的最后一招。
 
-### 还有 set_unexpected 
+### 没什么用的 set_unexpected 
 
 [unexpected (CRT)](https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/unexpected-crt?view=vs-2019) 默认调用terminate，可以通过[set_unexpected (CRT)](https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/set-unexpected-crt?view=vs-2019)来做自定义行为。
 
@@ -797,7 +815,45 @@ int main(int argc, char* argv[])
 }
 ```
 
-我在MSVC上试了这个例子 没用!!!  有人说这是微软的一个bug： [Exception Handling - set_unexpected() not able to call](https://stackoverflow.com/questions/10056909/exception-handling-set-unexpected-not-able-to-call)，gcc是可以的。
+我在MSVC上试了这个例子 无法调用到my_unexpected!!!  有人说这是微软的一个“bug”： [Exception Handling - set_unexpected() not able to call](https://stackoverflow.com/questions/10056909/exception-handling-set-unexpected-not-able-to-call)，gcc是可以的。
+
+### _set_purecall_handler
+
+调用时机在调用纯虚函数的时候。
+
+```cpp
+/// 目录地址：C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\crt\src\vcruntime\purevirt.cpp
+extern "C" extern _purecall_handler __pPurecall;
+
+extern "C" int __cdecl _purecall()
+{
+    _purecall_handler const purecall_handler = _get_purecall_handler();
+    if (purecall_handler != nullptr)
+    {
+        purecall_handler();
+
+        // The user-registered purecall handler should not return, but if it does,
+        // continue with the default termination behavior.
+    }
+
+    abort();
+}
+
+extern "C" _purecall_handler __cdecl _set_purecall_handler(
+    _purecall_handler const new_handler
+    )
+{
+    return __crt_fast_decode_pointer(
+        __crt_interlocked_exchange_pointer(
+            &__pPurecall,
+            __crt_fast_encode_pointer(new_handler)));
+}
+
+extern "C" _purecall_handler __cdecl _get_purecall_handler()
+{
+    return __crt_fast_decode_pointer(__crt_interlocked_read_pointer(&__pPurecall));
+}
+```
 
 ### _set_error_mode
 
@@ -809,15 +865,29 @@ int main(int argc, char* argv[])
 
 # 理一下思路
 
-Windows上的崩溃，
+Windows系统层面，捕获异常是通过系统中断/异常作为基础的。
+
+Windows中的进程，一般都会有一层SEH来包裹住，这是提供给开发者捕获异常的基础。如果是使用了CRT的C\++进程，还有一层CRT的main函数实现，这个函数主体也是用SEH包裹的，主要是为了兼容一些UNIX移植过来的程序的信号处理，实际上Windows没有对这些信号做什么特别的支持。不过，由于CRT中有自己的一套处理异常和错误的逻辑，一般情况下遇到这类问题都是以调用abort，terminate，或者exit结束进程，如果直接结束进程的话，进程就无法获取到处理这类异常的机会；CRT考虑到了这一点，为用户提供了一些接口，用来设置自定义异常处理，这类接口主要有：
+
+- _set_purecall_handler
+- _set_invalid_parameter_handler
+- 信号SIGABRT：signal(SIGABRT, mySignalHandler); 配合_set_abort_behavior（set_terminate会调用abort，所以只需要设置abort的处理函数）设置Debug模式下的是否弹出对话框
+
+基本上，除了上面提到的情况，使用SetUnhandledException可以抓到所有崩溃的场景了。
+
+**(本篇没敢研究CRT，SetUnhandledException，DLL三者组合的情形)**
 
 # 测试代码
 
 Windows上抓取minidump的代码可以参考 [这里](http://www.debuginfo.com/examples/effmdmpexamples.html)。
 
-放在了[github](https://github.com/u-stone/articles/tree/master/System/Windows/crash%E6%97%B6%E6%8A%93dump)上 。
+测试代码工程放在了 [github](https://github.com/u-stone/articles/tree/master/System/Windows/crash%E6%97%B6%E6%8A%93dump)上。
+
+invalid parameter 崩溃：
 
 ![invalid-parame-crash-dialog][invalid-parame-crash-dialog]
+
+纯虚函数调用：
 
 ![pure-call][pure-call]
 
@@ -838,16 +908,12 @@ Windows上抓取minidump的代码可以参考 [这里](http://www.debuginfo.com/
 MSDN上的资料：
 
 - [Structured Exception Handling](https://docs.microsoft.com/en-us/windows/win32/debug/structured-exception-handling),
-
 - [Exception Handling Routines](https://docs.microsoft.com/en-us/cpp/c-runtime-library/exception-handling-routines?view=vs-2019)
-
 - [Unhandled C++ exceptions](https://docs.microsoft.com/en-us/cpp/cpp/unhandled-cpp-exceptions?view=vs-2019)
-
 - [Handle structured exceptions in C++](https://docs.microsoft.com/en-us/cpp/cpp/exception-handling-differences?view=vs-2019)
-
 - [C runtime Library Reference](https://docs.microsoft.com/en-us/cpp/c-runtime-library/c-run-time-library-reference?view=vs-2019)
-
 - [Compatibility](https://docs.microsoft.com/en-us/cpp/c-runtime-library/compatibility?view=vs-2019)
+- [/GS (Buffer Security Check)](https://docs.microsoft.com/en-us/cpp/build/reference/gs-buffer-security-check?view=vs-2019) 搞清楚所谓的缓存安全检查是什么
 
 [SetUnhandledExceptionFilter拦不住的崩溃](https://blog.csdn.net/limiteee/article/details/8472179) 介绍了一种不被CRT替换掉自定义异常过滤函数的方法。
 
@@ -868,11 +934,9 @@ MSDN上的资料：
 
 [Crt, API, STL, MFC, ATL之间的关系](https://blog.csdn.net/acelit/article/details/58584706)
 
-
-
 Raymond的一篇文章 [Disabling the program crash dialog](https://devblogs.microsoft.com/oldnewthing/20040727-00/?p=38323)
 
-
+[How to Capture a Minidump: Let Me Count the Ways](https://www.wintellect.com/how-to-capture-a-minidump-let-me-count-the-ways/)
 
 
 

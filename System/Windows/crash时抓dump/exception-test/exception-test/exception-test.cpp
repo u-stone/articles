@@ -255,6 +255,16 @@ void term_func() {
     exit(-1);
 }
 
+#pragma warning(disable : 4996)   // for strcpy use
+void vulnerable(const char *str) {
+    char buffer[10];    
+    strcpy(buffer, str); // overrun buffer !!!
+    std::cout << buffer << std::endl;
+    // use a secure CRT function to help prevent buffer overruns
+    // truncate string to fit a 10 byte buffer
+    // strncpy_s(buffer, _countof(buffer), str, _TRUNCATE);
+}
+
 class CDerived;
 class CBase
 {
@@ -343,10 +353,14 @@ void SignalHandler(int signal)
     if (signal == SIGABRT) {
         RaiseException(0x4006, EXCEPTION_NONCONTINUABLE, 0, NULL);
     }
+    else if (signal == SIGSEGV) {
+        RaiseException(0x4007, EXCEPTION_NONCONTINUABLE, 0, NULL);
+    }
     else {
         // ...
     }
 }
+
 
 int test_signal()
 {
@@ -355,8 +369,11 @@ int test_signal()
     SignalHandlerPointer previousHandler;
     previousHandler = signal(SIGABRT, SignalHandler);
 
+    //raise(SIGSEGV);
+
     /// make SIGABRT signal handler called
     abort();
+    return 0;
 }
 
 void dummy(int& r) {
@@ -376,11 +393,11 @@ void function() throw() // no exception in this example, but it could be another
     throw std::exception();
 }
 void FooCode() {
-
+    __security_init_cookie();
     /// Disabling the program crash dialog 
     /// ref: https://devblogs.microsoft.com/oldnewthing/20040727-00/?p=38323
-    DWORD dwMode = SetErrorMode(SEM_NOGPFAULTERRORBOX);
-    SetErrorMode(dwMode | SEM_NOGPFAULTERRORBOX);
+    //DWORD dwMode = SetErrorMode(SEM_NOGPFAULTERRORBOX);
+    //dwMode = SetErrorMode(dwMode | SEM_NOGPFAULTERRORBOX);
 
     /// access violation -- dump catched
     //int* p = nullptr;
@@ -461,7 +478,16 @@ void FooCode() {
     // i can set SIGABRT handler to catch the exception.
     //test_signal();
 
-    std::set_terminate(nullptr);
-    std::terminate();
+    /// c++ style terminate.
+    //std::set_terminate(nullptr);
+    //std::terminate();
+
+    //-- buffer overrun
+    //char large_buffer[] = "This string is longer than 10 characters!!";
+    //vulnerable(large_buffer);
+
+
     /// and more...
+
+    std::cout << "end of program" << std::endl;
 }
