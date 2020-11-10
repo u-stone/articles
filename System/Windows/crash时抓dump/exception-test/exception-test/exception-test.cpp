@@ -9,6 +9,7 @@
 #include <exception>
 #include <new.h>
 #include <iostream>
+#include <vector>
 
 #define MAX_LOADSTRING 100
 
@@ -25,6 +26,35 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 void FooCode();
 LONG MyUnhandledExceptionFilter(_EXCEPTION_POINTERS *ExceptionInfo);
 
+LPTOP_LEVEL_EXCEPTION_FILTER WINAPI MyDummySetUnhandledExceptionFilter(
+    LPTOP_LEVEL_EXCEPTION_FILTER lpTopLevelExceptionFilter)
+{
+    return NULL;
+}
+
+BOOL PreventSetUnhandledExceptionFilter()
+{
+    HMODULE hKernel32 = LoadLibrary(_T("kernel32.dll"));
+    if (hKernel32 == NULL) return FALSE;
+    void *pOrgEntry = GetProcAddress(hKernel32, "SetUnhandledExceptionFilter");
+    if (pOrgEntry == NULL) return FALSE;
+    unsigned char newJump[100];
+    DWORD dwOrgEntryAddr = (DWORD)pOrgEntry;
+    dwOrgEntryAddr += 5; // add 5 for 5 op-codes for jmp far
+    void *pNewFunc = &MyDummySetUnhandledExceptionFilter;
+    DWORD dwNewEntryAddr = (DWORD)pNewFunc;
+    DWORD dwRelativeAddr = dwNewEntryAddr - dwOrgEntryAddr;
+
+    newJump[0] = 0xE9;  // JMP absolute
+    memcpy(&newJump[1], &dwRelativeAddr, sizeof(pNewFunc));
+    SIZE_T bytesWritten;
+    BOOL bRet = WriteProcessMemory(GetCurrentProcess(),
+        pOrgEntry, newJump, sizeof(pNewFunc) + 1, &bytesWritten);
+    return bRet;
+}
+
+LONG WINAPI VectoredHandler(struct _EXCEPTION_POINTERS *ExceptionInfo);
+
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
                      _In_ LPWSTR    lpCmdLine,
@@ -34,8 +64,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(lpCmdLine);
 
     // TODO: 在此处放置代码。
-    SetUnhandledExceptionFilter((LPTOP_LEVEL_EXCEPTION_FILTER)MyUnhandledExceptionFilter);
+    //SetUnhandledExceptionFilter((LPTOP_LEVEL_EXCEPTION_FILTER)MyUnhandledExceptionFilter);
+    //BOOL bRet = PreventSetUnhandledExceptionFilter();
+    //_tprintf(_T("Prevented: %d"), bRet);
+    //PVOID h1 = AddVectoredContinueHandler(1, VectoredHandler);
     FooCode();
+    //std::cout << h1;
+
     // 初始化全局字符串
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_EXCEPTIONTEST, szWindowClass, MAX_LOADSTRING);
@@ -158,6 +193,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             // TODO: 在此处添加使用 hdc 的任何绘图代码...
             EndPaint(hWnd, &ps);
         }
+        break;
+    case WM_LBUTTONUP:
         break;
     case WM_DESTROY:
         PostQuitMessage(0);
@@ -396,8 +433,15 @@ void FooCode() {
     __security_init_cookie();
     /// Disabling the program crash dialog 
     /// ref: https://devblogs.microsoft.com/oldnewthing/20040727-00/?p=38323
-    //DWORD dwMode = SetErrorMode(SEM_NOGPFAULTERRORBOX);
-    //dwMode = SetErrorMode(dwMode | SEM_NOGPFAULTERRORBOX);
+    DWORD mode_new = SEM_FAILCRITICALERRORS/* | SEM_NOGPFAULTERRORBOX*/;
+    DWORD dwMode = SetErrorMode(mode_new);
+    dwMode = SetErrorMode(dwMode | mode_new);
+
+    /// high priority command.
+    //_asm {cli};
+
+    //_set_abort_behavior(0, _CALL_REPORTFAULT);
+    //abort();
 
     /// access violation -- dump catched
     //int* p = nullptr;
@@ -486,8 +530,20 @@ void FooCode() {
     //char large_buffer[] = "This string is longer than 10 characters!!";
     //vulnerable(large_buffer);
 
+    std::vector<int> v;
+    v[0] = 0;
 
     /// and more...
 
-    std::cout << "end of program" << std::endl;
+    std::cout << "end of program" << v[0] << std::endl;
+}
+
+
+
+LONG WINAPI VectoredHandler(struct _EXCEPTION_POINTERS *ExceptionInfo)
+{
+    std::cout << "catch an exception" << std::endl;
+    RaiseException(0x4011, EXCEPTION_NONCONTINUABLE, 0, NULL);
+    //throw std::exception("hello");
+    return EXCEPTION_CONTINUE_SEARCH; /// or EXCEPTION_CONTINUE_EXECUTION 
 }
