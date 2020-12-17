@@ -905,7 +905,7 @@ invalid parameter 崩溃：
 
 [深入解析Windows操作系统：第6版（上册）](https://book.douban.com/subject/25844377/) 第三章系统机制中 3.1 陷阱分发。
 
-[Matt Pietrek](https://en.wikipedia.org/wiki/Matt_Pietrek) 在 Microsoft Systems Journal中的一篇文章 [A Crash Course on the Depths of Win32™ Structured Exception Handling](https://web.archive.org/web/20040603050159/http://www.microsoft.com/msj/0197/exception/exception.aspx)
+[Matt Pietrek](https://en.wikipedia.org/wiki/Matt_Pietrek) 在 Microsoft Systems Journal中的一篇文章 [A Crash Course on the Depths of Win32™ Structured Exception Handling](https://web.archive.org/web/20040603050159/http://www.microsoft.com/msj/0197/exception/exception.aspx)，或者查看这个网站[个人博客](http://bytepointer.com/resources/pietrek_crash_course_depths_of_win32_seh.htm)，其中有一个不错的资源汇集页面 [	Resources](http://bytepointer.com/resources/index.htm)
 
 [Under The Hood - Matt Pietrek](https://docs.microsoft.com/en-us/archive/blogs/matt_pietrek/)
 
@@ -920,6 +920,7 @@ MSDN上的资料：
 - [C runtime Library Reference](https://docs.microsoft.com/en-us/cpp/c-runtime-library/c-run-time-library-reference?view=vs-2019)
 - [Compatibility](https://docs.microsoft.com/en-us/cpp/c-runtime-library/compatibility?view=vs-2019)
 - [/GS (Buffer Security Check)](https://docs.microsoft.com/en-us/cpp/build/reference/gs-buffer-security-check?view=vs-2019) 搞清楚所谓的缓存安全检查是什么
+- [/EH (Exception handling model)](https://docs.microsoft.com/en-us/cpp/build/reference/eh-exception-handling-model?view=msvc-160) 异常处理模型，这个编译选项会影响C++异常和SEH异常的行为。
 
 [SetUnhandledExceptionFilter拦不住的崩溃](https://blog.csdn.net/limiteee/article/details/8472179) 介绍了一种不被CRT替换掉自定义异常过滤函数的方法。
 
