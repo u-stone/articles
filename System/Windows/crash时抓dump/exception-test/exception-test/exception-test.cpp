@@ -437,6 +437,9 @@ void FooCode() {
     DWORD dwMode = SetErrorMode(mode_new);
     dwMode = SetErrorMode(dwMode | mode_new);
 
+    MyUnhandledExceptionFilter(nullptr);
+    return;
+
     /// high priority command.
     //_asm {cli};
 
