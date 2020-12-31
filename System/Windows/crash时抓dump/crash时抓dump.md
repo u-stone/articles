@@ -921,8 +921,11 @@ MSDN上的资料：
 - [Compatibility](https://docs.microsoft.com/en-us/cpp/c-runtime-library/compatibility?view=vs-2019)
 - [/GS (Buffer Security Check)](https://docs.microsoft.com/en-us/cpp/build/reference/gs-buffer-security-check?view=vs-2019) 搞清楚所谓的缓存安全检查是什么
 - [/EH (Exception handling model)](https://docs.microsoft.com/en-us/cpp/build/reference/eh-exception-handling-model?view=msvc-160) 异常处理模型，这个编译选项会影响C++异常和SEH异常的行为。
+- [/SAFESEH (Image has Safe Exception Handlers)](https://docs.microsoft.com/en-us/cpp/build/reference/safeseh-image-has-safe-exception-handlers?view=msvc-160)
 
 [SetUnhandledExceptionFilter拦不住的崩溃](https://blog.csdn.net/limiteee/article/details/8472179) 介绍了一种不被CRT替换掉自定义异常过滤函数的方法。
+
+[Windows 程序捕获崩溃异常 生成dump](https://www.cnblogs.com/jojodru/p/9618416.html) 介绍了比较全面的SEH的内容。值得关注的是`SetProcessUserModeExceptionPolicy`的处理，相应的一个问题：[Exceptions silently caught by Windows, how to handle manually?](https://stackoverflow.com/questions/2622200/exceptions-silently-caught-by-windows-how-to-handle-manually)
 
 [Why SetUnhandledExceptionFilter cannot capture some exception but AddVectoredExceptionHandler can do](https://stackoverflow.com/questions/19656946/why-setunhandledexceptionfilter-cannot-capture-some-exception-but-addvectoredexc) 介绍了VEH比SEH高级的地方。
 
