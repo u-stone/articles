@@ -44,7 +44,36 @@ Windows 10上，我测试下来，自定义未处理异常函数的返回值与S
 
 Windows上这个处理过程可以抓取到大多数崩溃。参考资料中的[CrashRpt](http://crashrpt.sourceforge.net/)也使用了这个方法。
 
-### 那还有小部分呢？
+### SEH的小插曲
+
+之前Windows上出现过一个bug，在Win32程序的WndProc中如果发生崩溃的话，会被SEH忽略：参考 [OpenGL suppresses exceptions in MFC dialog-based application](https://stackoverflow.com/questions/2162897/opengl-suppresses-exceptions-in-mfc-dialog-based-application)，以及 [Exceptions silently caught by Windows, how to handle manually?](https://stackoverflow.com/questions/2622200/exceptions-silently-caught-by-windows-how-to-handle-manually) （这里提到微软为此还出过一个更新包 KB976038（Exceptions that are thrown from an application that runs in a 64-bit version of Windows are ignored），不过MSDN大改版之后，现在这些资料找不到了）。一个解决方案是使用SEH包裹WndProc或者HookProc，但是这个肯定不是好办法。
+
+不过另一个方法是强制Windows不再忽略该异常，使用到的代码(据说是KB976038文档中带的官方代码)：
+
+```cpp
+// 因为这个功能在微软打的补丁包里面，所以需要通过动态加载的方式设置。
+// 另外，这个补丁包已经包含在了Win7 SP1中。
+#define PROCESS_CALLBACK_FILTER_ENABLED     0x1
+typedef BOOL (WINAPI *GETPROCESSUSERMODEEXCEPTIONPOLICY)(__out LPDWORD lpFlags);
+typedef BOOL (WINAPI *SETPROCESSUSERMODEEXCEPTIONPOLICY)(__in DWORD dwFlags );
+HINSTANCE h = ::LoadLibrary(L"kernel32.dll");
+if ( h ) {
+   GETPROCESSUSERMODEEXCEPTIONPOLICY GetProcessUserModeExceptionPolicy = 
+        reinterpret_cast< GETPROCESSUSERMODEEXCEPTIONPOLICY >( ::GetProcAddress(h, "GetProcessUserModeExceptionPolicy") );
+   SETPROCESSUSERMODEEXCEPTIONPOLICY SetProcessUserModeExceptionPolicy = 
+        reinterpret_cast< SETPROCESSUSERMODEEXCEPTIONPOLICY >( ::GetProcAddress(h, "SetProcessUserModeExceptionPolicy") );
+   if ( GetProcessUserModeExceptionPolicy == 0 || SetProcessUserModeExceptionPolicy == 0 ) {
+      return;
+   }
+   DWORD dwFlags;
+   if (GetProcessUserModeExceptionPolicy(&dwFlags)) {
+      SetProcessUserModeExceptionPolicy(dwFlags & ~PROCESS_CALLBACK_FILTER_ENABLED); 
+   }
+}
+```
+
+
+## 那还有小部分呢？
 
 SetUnhandledExceptionFilter并不能处理Windows上C\++代码的所有未处理，简单地说是因为CRT有自己的处理逻辑。
 
