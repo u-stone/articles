@@ -270,5 +270,193 @@ int main()
 只有一个 `Simple::test()` 实现。不论是否把 `Simple` 的哪个方法声明为 `= default` 都不会有什么改变。
 
 
+## Case 4
+
+```C++
+class Simple {
+public:
+    Simple() = default;
+    Simple(char cc) : c(cc) {}
+    Simple(const Simple&) = default;
+    void test();
+
+    int c;
+};
+
+int main()
+{
+    Simple s; // 必须声明 Simple() = default 
+    s.test();
+    Simple s2(std::move(s));
+}
+```
+
+以上代码最终的汇编代码中还是不会有 `Simple(char c)`。因为 `main` 中没有相关使用的地方，不需要生成吧。同时可以发现 `Simple` 中没有类类型成员，所以即使 `main` 中有使用 `std::move` 来做移动构造，但是还是不需要为 `Simple` 特地生成移动构造函数。
+
+![re-code-04.png](./re-code-04.png)
+
+## Case 5
+
+```C++
+class Simple {
+public:
+    Simple() = default;
+    Simple(char cc) : c(cc) {}
+    Simple(const Simple&) = default;
+    void test();
+
+    int c;
+};
+
+int main()
+{
+    Simple s;
+    s.test();
+    Simple s2(std::move(s));
+    Simple s3('1'); // 会触发生成 `Simple(char)` 构造函数
+}
+```
+
+![re-code-05.png](./re-code-05.png)
+
+对应汇编代码：
+
+```asm
+
+        ; ================ B E G I N N I N G   O F   P R O C E D U R E ================
+
+        ; Variables:
+        ;    var_8: int64_t, -8
+        ;    var_9: int8_t, -9
 
 
+                     __ZN6SimpleC1Ec:        // Simple::Simple(char)
+0000000100003f70         push       rbp                                         ; CODE XREF=_main+40
+0000000100003f71         mov        rbp, rsp
+0000000100003f74         sub        rsp, 0x10
+0000000100003f78         mov        qword [rbp+var_8], rdi
+0000000100003f7c         mov        byte [rbp+var_9], sil
+0000000100003f80         mov        rdi, qword [rbp+var_8]
+0000000100003f84         movsx      esi, byte [rbp+var_9]
+0000000100003f88         call       __ZN6SimpleC2Ec                             ; Simple::Simple(char)
+0000000100003f8d         add        rsp, 0x10
+0000000100003f91         pop        rbp
+0000000100003f92         ret
+                        ; endp
+0000000100003f93         align      32
+
+
+        ; ================ B E G I N N I N G   O F   P R O C E D U R E ================
+
+        ; Variables:
+        ;    var_8: int64_t, -8
+        ;    var_9: int8_t, -9
+
+
+                     __ZN6SimpleC2Ec:        // Simple::Simple(char)
+0000000100003fa0         push       rbp                                         ; CODE XREF=__ZN6SimpleC1Ec+24
+0000000100003fa1         mov        rbp, rsp
+0000000100003fa4         mov        qword [rbp+var_8], rdi
+0000000100003fa8         mov        byte [rbp+var_9], sil
+0000000100003fac         mov        rax, qword [rbp+var_8]
+0000000100003fb0         movsx      ecx, byte [rbp+var_9]
+0000000100003fb4         mov        dword [rax], ecx
+0000000100003fb6         pop        rbp
+0000000100003fb7         ret
+                        ; endp
+```
+
+## Case 6
+
+如果 `Case 4` 中的 `Simple` 类的成员置换成类类型：`std::string`
+
+```C++
+#include <string>
+class Simple {
+public:
+    Simple() = default;
+    Simple(char cc) : c{cc} {}
+    Simple(const Simple&) = default;
+    void test();
+
+    std::string c;
+};
+
+int main()
+{
+    Simple s;
+    s.test();
+    Simple s2(std::move(s));
+}
+```
+
+汇编代码中也是有了默认构造函数和拷贝构造函数，但是相比 `Case 2`，没有生成移动构造函数。
+
+![image](./re-code-06.png)
+
+## Case 7
+
+如果将 `Case 6` 中的拷贝构造函数去掉：
+
+```C++
+#include <string>
+class Simple {
+public:
+    Simple() = default;
+    Simple(char cc) : c{cc} {}
+    void test();
+
+    std::string c;
+};
+
+int main()
+{
+    Simple s;
+    s.test();
+    Simple s2(std::move(s));
+}
+```
+
+最终的汇编代码中，就没有拷贝构造函数了，同时有了一个移动构造函数：
+
+![re-code-07.png](./re-code-07.png)
+
+看起来倒像是 `Simple(const Simple&)` 抑制了 `Simple(Simple&&)` 的生成。 
+
+《Effective Modern C++》的 [条款十七：理解特殊成员函数的生成](https://cntransgroup.github.io/EffectiveModernCppChinese/3.MovingToModernCpp/item17.html) 中介绍到：
+
+> 所以仅当下面条件成立时才会生成移动操作（当需要时）：
+> 
+> - 类中没有拷贝操作
+> - 类中没有移动操作
+> - 类中没有用户定义的析构
+>
+
+同时，如果用户显式地声明了拷贝操作（拷贝构造和拷贝赋值），那么编译器就不会生成对应的移动操作（移动构造和移动赋值）；反之亦然。但要注意这个影响的是编译器的默认行为。用户依然可以自定义对应的函数。而编译器这么做的逻辑是，默认生成的函数一般是按位拷贝或者按位移动的，如果其中一个被用户自定义了，那就是说不能简单地按位操作，另一种操作就也是不合适的。
+
+## Case 8
+
+如果将 `Simple(Simple&&)` 声明为 default呢：
+
+```C++
+#include <string>
+class Simple {
+public:
+    Simple() = default;
+    Simple(char cc) : c{cc} {}
+    Simple(const Simple&) = default;
+    Simple(Simple&&) = default;
+    void test();
+
+    std::string c;
+};
+
+int main()
+{
+    Simple s;
+    s.test();
+    Simple s2(std::move(s));
+}
+```
+
+最终的汇编代码同 `Case 7`。
