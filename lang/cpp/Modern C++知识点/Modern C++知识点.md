@@ -52,6 +52,8 @@ int main() {
 
 注意观察lambda表达式的签名：`test(int, int)::$_0::operator()() const`，按照重载调用符的格式：`test(int, int)` 是namespace，`$_0` 是类名称，`operator()() const` 是重载符号的声明。
 
+如果把这个lambda表达式放在main函数中，这个签名就会变成 `main()::$_0::operator()() const`。
+
 # 智能指针
 
 std库中的智能指针一般都带有一个删除器，不过一般的C++面试中不会要求你写一个删除器版本的智能指针。网上搜索到的很多代码也都是直接做 new/delete 的。
