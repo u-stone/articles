@@ -1,0 +1,58 @@
+# auto
+
+# 右值引用
+
+# lambda 表达式
+
+lambda 表达式的参数捕获中要避免出现“引用悬挂”问题。这种一般出现在lambda表达式应用了一个局部变量，但是lambda表达式被拷贝到另外一个作用域。
+
+一般来说，最好是显式地列出依赖的局部变量或者参数。
+
+捕获只能应用于lambda被创建时所在作用域里的non-static局部变量（包括形参）。[条款三十一：避免使用默认捕获模式](https://cntransgroup.github.io/EffectiveModernCppChinese/6.LambdaExpressions/item31.html)
+
+lambda 表达式的实现是匿名类。
+
+```C++
+int test(int a = 0, int b = 0) {
+auto lambda = [a, b](){
+    return a + b;
+};
+    return lambda();
+}
+
+int main() {
+    int a = 1, b = 2;
+    test(a, b);
+}
+```
+
+对应的汇编代码：
+
+```
+
+        ; ================ B E G I N N I N G   O F   P R O C E D U R E ================
+
+        ; Variables:
+        ;    var_8: int64_t, -8
+
+
+                     __ZZ4testiiENK3$_0clEv:        // test(int, int)::$_0::operator()() const
+0000000100003f60         push       rbp                                         ; CODE XREF=__Z4testii+30
+0000000100003f61         mov        rbp, rsp
+0000000100003f64         mov        qword [rbp+var_8], rdi
+0000000100003f68         mov        rax, qword [rbp+var_8]
+0000000100003f6c         mov        ecx, dword [rax]
+0000000100003f6e         add        ecx, dword [rax+4]
+0000000100003f71         mov        eax, ecx
+0000000100003f73         pop        rbp
+0000000100003f74         ret
+                        ; endp
+0000000100003f75         align      128
+```
+
+注意观察lambda表达式的签名：`test(int, int)::$_0::operator()() const`，按照重载调用符的格式：`test(int, int)` 是namespace，`$_0` 是类名称，`operator()() const` 是重载符号的声明。
+
+# 智能指针
+
+std库中的智能指针一般都带有一个删除器，不过一般的C++面试中不会要求你写一个删除器版本的智能指针。网上搜索到的很多代码也都是直接做 new/delete 的。
+
