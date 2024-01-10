@@ -56,5 +56,13 @@ int main() {
 
 # 智能指针
 
+std::auto_ptr, unique_ptr, shared_ptr, weak_ptr 都要看一下。尤其是 shared_ptr 和 weak_ptr 的交互操作。比如 weak_ptr 的lock如何实现？
+
 std库中的智能指针一般都带有一个删除器，不过一般的C++面试中不会要求你写一个删除器版本的智能指针。网上搜索到的很多代码也都是直接做 new/delete 的。
+
+可以参考几篇文章：
+
+- [【c++面试之智能指针】【万字长文】【超级详细】最详细解析四种智能指针，面试题汇总及解答，妈妈再也不担心面试官考我智能指针了。](https://zhuanlan.zhihu.com/p/609599904)
+- [C++面试题（四）——智能指针的原理和实现](https://blog.csdn.net/worldwindjp/article/details/18843087) 
+- [C++面试八股文：什么是智能指针？](https://juejin.cn/post/7246328828838936637)
 
