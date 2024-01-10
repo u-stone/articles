@@ -1,9 +1,9 @@
-*分析的源码对应的是 `Xcode 12.0.1` 中 `llvm` 关于 `libc++` 的实现。`llvm` 源码[地址](https://github.com/llvm/llvm-project)，及 `llvm` [下载地址汇总](https://releases.llvm.org/download.html)。`libc++` 的[文档](https://releases.llvm.org/16.0.0/projects/libcxx/docs/index.html)*
+*分析的源码对应的是 `Xcode 12.0.1` 中 `llvm` 关于 `libc++` 的实现，对应 `clang` 版本 `Apple clang version 12.0.0 (clang-1200.0.32.2)`。`llvm` 源码[地址](https://github.com/llvm/llvm-project)，及 `llvm` [下载地址汇总](https://releases.llvm.org/download.html)。`libc++` 的[文档](https://releases.llvm.org/16.0.0/projects/libcxx/docs/index.html)*
 
 [toc]
 
-
 *代码分析的思路是，按照 [cppreference.com](https://en.cppreference.com/) 网站上列出的智能指针接口顺序，依据 llvm 中的源代码，借助 copilot 的帮助，分类别、按序分析。*
+*clang 版本信息与 `Xcode` 对应关系参考[这里](https://gist.github.com/yamaya/2924292)*
 
 
 # 支持的操作
@@ -244,12 +244,12 @@ public:
             class = _EnableIfDeleterDefaultConstructible<_Dummy> >
   _LIBCPP_INLINE_VISIBILITY
   _LIBCPP_CONSTEXPR unique_ptr() _NOEXCEPT : __ptr_(pointer(), __default_init_tag()) {}
-
+  // nullptr_t 单独作为一个类型列出来
   template <bool _Dummy = true,
             class = _EnableIfDeleterDefaultConstructible<_Dummy> >
   _LIBCPP_INLINE_VISIBILITY
   _LIBCPP_CONSTEXPR unique_ptr(nullptr_t) _NOEXCEPT : __ptr_(pointer(), __default_init_tag()) {}
-
+  // 常用的版本
   template <bool _Dummy = true,
             class = _EnableIfDeleterDefaultConstructible<_Dummy> >
   _LIBCPP_INLINE_VISIBILITY
@@ -274,7 +274,7 @@ public:
     static_assert(!is_reference<deleter_type>::value,
                   "rvalue deleter bound to reference");
   }
-  // 对应_Deleter为 右值引用。 不允许把一个右值引用（const和非const）初始化为unique_ptr对象。
+  // 对应 _Deleter为 右值引用。 不允许把一个右值引用（const和非const）初始化为unique_ptr对象。
   template <bool _Dummy = true,
             class = _EnableIfDeleterConstructible<_BadRValRefType<_Dummy> > >
   _LIBCPP_INLINE_VISIBILITY
@@ -396,9 +396,7 @@ template <bool _Dummy>
 using _BadRValRefType _LIBCPP_NODEBUG_TYPE =
     typename __dependent_type<_DeleterSFINAE, _Dummy>::__bad_rval_ref_type;
 
-// C++ 标准的基础模版工具，可以在
-// /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1/type_traits 
-// 中找到
+// C++ 标准的基础模版工具，可以在 type_traits 文件中找到
 template <bool, class _Tp = void> struct _LIBCPP_TEMPLATE_VIS enable_if {};
 template <class _Tp> struct _LIBCPP_TEMPLATE_VIS enable_if<true, _Tp> {typedef _Tp type;};
  
@@ -722,5 +720,14 @@ operator>=(nullptr_t, const unique_ptr<_T1, _D1>& __x)
     return !(nullptr < __x);
 }
 ```
+
+# 需要注意的点
+
+- 首先，`unique_ptr` 支持数组形式
+- `make_unique` 提供带参数的构造方法，但是数组形式不支持带参数
+- 赋值操作符单独支持 nullptr_t，为了方便支持 `unique_ptr` 通过 `nullptr` 置空。同时各种比较操作符重载实现中也要特地考虑 `nullptr_t`，而且还要考虑左侧和右侧两种情况。
+- 普通的拷贝构造函数和赋值操作符需要声明为 `= delete`
+- 右值引用的移动构造函数和移动赋值操作符也要声明为 `= delete`，不过这个属于比较高级的操作了。
+- 构造函数，移动构造函数，移动赋值操作符也要支持派生类，或者说可转换的参数
 
 以上。
