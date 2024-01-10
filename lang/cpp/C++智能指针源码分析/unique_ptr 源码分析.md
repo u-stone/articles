@@ -1,4 +1,4 @@
-*分析的源码对应的是 `llvm` 关于 `libc++` 的实现。`llvm` 源码[地址](https://github.com/llvm/llvm-project)，及 `llvm` [下载地址汇总](https://releases.llvm.org/download.html)。`libc++` 的[文档](https://releases.llvm.org/16.0.0/projects/libcxx/docs/index.html)*
+*分析的源码对应的是 `Xcode 12.0.1` 中 `llvm` 关于 `libc++` 的实现。`llvm` 源码[地址](https://github.com/llvm/llvm-project)，及 `llvm` [下载地址汇总](https://releases.llvm.org/download.html)。`libc++` 的[文档](https://releases.llvm.org/16.0.0/projects/libcxx/docs/index.html)*
 
 [toc]
 
