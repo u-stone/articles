@@ -730,4 +730,6 @@ operator>=(nullptr_t, const unique_ptr<_T1, _D1>& __x)
 - 右值引用的移动构造函数和移动赋值操作符也要声明为 `= delete`，不过这个属于比较高级的操作了。
 - 构造函数，移动构造函数，移动赋值操作符也要支持派生类，或者说可转换的参数
 
+C++标准草稿 [Working Draft, Standard for Programming Language C++](https://www.open-std.org/JTC1/SC22/WG21/docs/papers/2020/n4849.pdf) pdf 中 20.11.1.2 unique_ptr for single object，以及 20.11.1.3 unique_ptr for array objects with a  runtime length 分别介绍了 `unique_ptr` 的单对象和不定长数组对象封装接口。
+
 以上。
