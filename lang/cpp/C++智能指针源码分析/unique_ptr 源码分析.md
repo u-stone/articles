@@ -721,6 +721,24 @@ operator>=(nullptr_t, const unique_ptr<_T1, _D1>& __x)
 }
 ```
 
+- operator <<
+
+定义在 `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1/ostream` 中：
+
+```C++
+template<class _CharT, class _Traits, class _Yp, class _Dp>
+inline _LIBCPP_INLINE_VISIBILITY
+typename enable_if
+<
+    is_same<void, typename __void_t<decltype((declval<basic_ostream<_CharT, _Traits>&>() << declval<typename unique_ptr<_Yp, _Dp>::pointer>()))>::type>::value,
+    basic_ostream<_CharT, _Traits>&
+>::type
+operator<<(basic_ostream<_CharT, _Traits>& __os, unique_ptr<_Yp, _Dp> const& __p)
+{
+    return __os << __p.get();
+}
+```
+
 # 需要注意的点
 
 - 首先，`unique_ptr` 支持数组形式

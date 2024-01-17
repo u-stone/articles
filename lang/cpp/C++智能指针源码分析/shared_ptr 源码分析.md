@@ -1280,7 +1280,7 @@ template <class _Up>
     {return __cntrl_ < __p.__cntrl_;}
 ```
 
-
+`owner_before` 是用来在标准库的算法(比如 `std::owner_less`)中排序用的，一旦有了排序的算法，`shared_ptr`, `weak_ptr` 就可以作为 `key` 保存在排序的容器中了。
 
 ## 非成员函数
 
@@ -1359,6 +1359,20 @@ void
 swap(shared_ptr<_Tp>& __x, shared_ptr<_Tp>& __y) _NOEXCEPT
 {
     __x.swap(__y);
+}
+```
+
+- operator<<
+
+定义在 `/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1/ostream` 中：
+
+```C++
+template<class _CharT, class _Traits, class _Yp>
+inline _LIBCPP_INLINE_VISIBILITY
+basic_ostream<_CharT, _Traits>&
+operator<<(basic_ostream<_CharT, _Traits>& __os, shared_ptr<_Yp> const& __p)
+{
+    return __os << __p.get();
 }
 ```
 
