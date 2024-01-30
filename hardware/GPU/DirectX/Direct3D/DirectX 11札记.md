@@ -216,6 +216,45 @@ Windows 映像组件 (WIC) 是一个可扩展平台，它为数字图像提供�
 - MSDN
     - [DXGI flip model](https://docs.microsoft.com/en-us/windows/win32/direct3ddxgi/dxgi-flip-model)
 
+# AIGC 问答
+
+- Q: 一个DirectX入门的开发者，如何学习DirectX的Effect技术？
+- A:
+  ```
+  作为一个DirectX入门的开发者，学习DirectX的Effect技术可以按照以下步骤进行：
+
+  1. 了解基本的DirectX知识：首先，您需要掌握基本的DirectX知识，包括图形渲染管线、顶点和像素着色器等。可以通过阅读相关的教程或文档来了解这些基础概念。
+
+  2. 学习Effect框架：Effect是DirectX提供的一种简化着色器编程的框架。您可以学习Effect框架的基本概念和使用方法，包括Effect文件的语法和结构，以及如何在应用程序中加载和使用Effect文件。
+
+  3. 编写简单的Effect文件：从简单的例子开始，编写一些基本的Effect文件。可以从渲染一个简单的三角形开始，逐步增加效果和复杂度，以加深对Effect技术的理解。
+
+  4. 实践和实验：通过实践和实验，您可以进一步熟悉Effect技术的应用。尝试在应用程序中使用Effect文件来实现不同的渲染效果，如光照、阴影、纹理映射等。
+
+  5. 学习和参考示例代码：查阅DirectX的官方文档和示例代码，以及其他相关的教程和书籍。这些资源可以帮助您深入了解Effect技术的各个方面，并提供实际的代码示例供参考。
+
+  6. 加入开发社区：加入DirectX开发者的社区或论坛，与其他开发者交流经验和技术。这样可以获得更多的学习资源和支持，同时也可以分享自己的经验和成果。
+
+  总之，学习DirectX的Effect技术需要一定的时间和实践，但通过持续的学习和实践，您将逐渐掌握这一技术，并能够在应用程序中灵活地使用它。祝您学习顺利！
+  ```
+- Q: effect与hlsl有什么关系?
+- A: 
+  ```
+  Effect与HLSL（High-Level Shading Language）是密切相关的，下面是它们之间的关系：
+
+  Effect是一种用于简化HLSL编程的框架。它提供了一种结构化的方式来定义和管理着色器及其相关资源，如纹理、常量缓冲等。Effect文件使用HLSL作为其内部的着色器语言。
+
+  HLSL是一种用于编写着色器的高级语言。它与C++相似，并具有一些额外的特性和语法来支持图形渲染管线中的顶点和像素着色器的编写。HLSL代码需要编译为GPU可以执行的字节码，这通常通过DirectX编译器实现。
+
+  在Effect框架中，您可以使用HLSL编写着色器代码，并将其嵌入到Effect文件中。Effect文件中还可以包含一些额外的语法和语义来描述着色器的参数、纹理、渲染状态等信息。通过Effect文件，您可以更方便地管理和使用着色器及其相关资源。
+
+  总而言之，Effect是一种在HLSL基础上构建的框架，它简化了HLSL着色器的编程和管理，使得开发者可以更便捷地定义和使用着色器及其相关资源。HLSL是用于编写着色器代码的语言，Effect文件使用HLSL作为其内部的着色器语言。
+  ```
+
 # 资料
 
 - [DirectX 11 龙书中文版译者网站](https://enjoyphysics.cn/Soft/Program)
+- B 站教程：[C++ 3D DirectX Programming(DirectX 11)](https://www.bilibili.com/video/BV17J411J7MB/?spm_id_from=333.999.0.0&vd_source=adf6eac1e33345717d8cd94de0070db7)，视频对应的Wiki：[Hardware 3D Series (C++ DirectX Graphics)](https://wiki.planetchili.net/index.php/Hardware_3D_Series_(C%2B%2B_DirectX_Graphics))
+- [Windows Advanced Rasterization Platform (WARP) Guide](https://learn.microsoft.com/en-us/windows/win32/direct3darticles/directx-warp)
+- Clayman 的 [游戏程序员养成计划 (更新2013.3.19)](https://www.cnblogs.com/clayman/archive/2009/05/17/1459001.html)
+- [zhygmsz/book](https://github.com/zhygmsz/book/tree/master) 电子版优秀书籍的一个集合
