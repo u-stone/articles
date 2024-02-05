@@ -1257,6 +1257,8 @@ _LIBCPP_INLINE_VISIBILITY
 _LIBCPP_EXPLICIT operator bool() const _NOEXCEPT {return get() != 0;}
 ```
 
+这里需要留意一下自定义类型转换的原型，这个操作是没有 `返回值` 的。上面这种写法属于**转换函数**，可以参考 [用户定义的类型转换 (C++)](https://learn.microsoft.com/zh-cn/cpp/cpp/user-defined-type-conversions-cpp?view=msvc-170)。还有一种使用 `explicit` 修饰的写法。
+
 - operator*, ->
 
 ```C++

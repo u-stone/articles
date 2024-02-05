@@ -45,9 +45,10 @@ DirectX SDK下载地址:
 
 自从Win8开始，DirectX SDK包含在了Windows SDK中。[Where is the DirectX SDK?](https://docs.microsoft.com/en-us/windows/win32/directx-sdk--august-2009-)
 
-# 工具
+# 性能
 
 Intel的性能分析工具：[Intel® Graphics Performance Analyzers](https://www.intel.com/content/www/us/en/developer/tools/graphics-performance-analyzers/overview.html)
+
 
 # 调试
 
@@ -63,4 +64,10 @@ Intel的性能分析工具：[Intel® Graphics Performance Analyzers](https://ww
 *   [Matt's Webcorner - GPUView](https://graphics.stanford.edu/\~mdfisher/GPUView.html)
 *   [PIX on Windows](https://devblogs.microsoft.com/pix/)，[下载](https://devblogs.microsoft.com/pix/download/)，[GPU Captures](https://devblogs.microsoft.com/pix/gpu-captures/)
 *   [NVIDIA PerfHUD](https://developer.nvidia.com/nvidia-perfhud) nVidia为Vista和Win7提供的一个调试工具，更高版本系统上使用的是：[CUDA Toolkit](https://developer.nvidia.com/cuda-toolkit) 的 [NVIDIA Nsight Visual Studio Edition](https://developer.nvidia.com/nsight-visual-studio-edition)
+
+# 相关开源库
+
+- [DirectXMath](https://learn.microsoft.com/en-us/windows/win32/dxmath/directxmath-portal) `XNAMATH` 的最新版本，DirectXMath API 为 DirectX 应用程序常见的常见线性代数和图形数学运算提供 SIMD 友好的 C++ 类型和函数。这个库微软开源并托管在了 GitHub 上：[microsoft/DirectXMath](https://github.com/Microsoft/DirectXMath)。支持 nuget 下载安装，可以在 [nuget 官网](https://www.nuget.org/packages) 上找到。
+- []()
+
 
