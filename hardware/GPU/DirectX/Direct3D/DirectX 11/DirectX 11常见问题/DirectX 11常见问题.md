@@ -158,7 +158,9 @@ if (SUCCEEDED(hr))
 
 ## 常见函数解释
 
-### IDXGISwapChain::Present 的参数 `SyncInterval` 提到的 `"vertical blank"` 是什么意思？
+### DirectX API
+
+#### IDXGISwapChain::Present 的参数 `SyncInterval` 提到的 `"vertical blank"` 是什么意思？
 
 chatgpt 的回答：
 ```
@@ -172,6 +174,12 @@ chatgpt 的回答：
 总结来说，SyncInterval参数用于控制帧的显示时机，以平衡帧率和显示效果之间的权衡。根据您的需求和硬件性能，可以选择适当的SyncInterval值来获得满意的显示效果。
 ```
 
+### 第三方库
+
+#### CreateDDSTextureFromFile 加载 .dds 失败
+
+`DirectXTK` 库中的 `CreateDDSTextureFromFile` API 作为取代老的[`D3DX11CreateShaderResourceViewFromFile`](https://learn.microsoft.com/en-us/windows/win32/direct3d11/d3dx11createshaderresourceviewfromfile) 的函数，加载老的 *.dds 文件可能存在错误，原因可以参考 [Can't get CreateDDSTextureFromFile to work](https://stackoverflow.com/questions/27951873/cant-get-createddstexturefromfile-to-work)。
+
 # 性能
 
 - [For best performance, use DXGI flip model](https://devblogs.microsoft.com/directx/dxgi-flip-model/) 创建DX设备时，如何选择 flip mode。
@@ -184,13 +192,20 @@ chatgpt 的回答：
 
 # 第三方库
 
-- 微软的
-    - 微软自己开发的，[DirectXMath](https://learn.microsoft.com/en-us/windows/win32/dxmath/directxmath-portal) `XNAMATH` 的最新版本，DirectXMath API 为 DirectX 应用程序常见的常见线性代数和图形数学运算提供 SIMD 友好的 C++ 类型和函数。这个库微软开源并托管在了 GitHub 上：[microsoft/DirectXMath](https://github.com/Microsoft/DirectXMath)。支持 nuget 下载安装，可以在 [nuget 官网](https://www.nuget.org/packages) 上找到。如果在Windows 10 系统上使用 `#include <xnamath.h>` 结果编译器找不到对应头文件的话，可以看看是不是可以升级到 `DirectXMath` 库了。
+- 微软的开源工具库，博客[Living without D3DX](https://walbourn.github.io/living-without-d3dx/)描述道： *“所有版本的 D3DX 均已弃用，并且不随 Windows 8.x SDK 一起提供。这包括 D3DX9、D3DX10 和 D3DX11。有很多选项可以将现有代码转移到更新的、更受支持的解决方案，其中大多数现在都是共享源代码。”*，同时给出了 **D3DX 移植表：**
+    - [DirectXMath](https://learn.microsoft.com/en-us/windows/win32/dxmath/directxmath-portal) `XNAMATH` 的最新版本，DirectXMath API 为 DirectX 应用程序常见的常见线性代数和图形数学运算提供 SIMD 友好的 C++ 类型和函数。这个库微软开源并托管在了 GitHub 上：[microsoft/DirectXMath](https://github.com/Microsoft/DirectXMath)。支持 nuget 下载安装，可以在 [nuget 官网](https://www.nuget.org/packages) 上找到。如果在Windows 10 系统上使用 `#include <xnamath.h>` 结果编译器找不到对应头文件的话，就可以升级到 `DirectXMath` 库了。
     - [microsoft/FX11](https://github.com/Microsoft/FX11) Effects for Direct3D 11 (FX11) 是一个管理运行时，用于一起创作 HLSL 着色器、渲染状态和运行时变量。此代码设计为使用 Visual Studio 2019（16.11 或更高版本）或 Visual Studio 2022 进行构建。需要使用 Windows 10 May 2020 Update SDK（19041）或更高版本。
     - [microsoft/DXUT](https://github.com/microsoft/DXUT/wiki)  多年来，DXUT 一直享有某种“半官方”地位，因为它在大多数 DirectX SDK 示例内容中使用。一些视频卡制造商的样品也采用了它。参考这里对它的描述 [DXUT for Win32 Desktop Update](https://walbourn.github.io/dxut-for-win32-desktop-update/)
+    - [microsoft/DirectXTK](https://github.com/Microsoft/DirectXTK) DirectX Tool Kit for DirectX 11
+    - [microsoft/DirectXTK12](https://github.com/Microsoft/DirectXTK12) 用于为 Windows 11 和 Windows 10 的通用 Windows 平台 (UWP) 应用程序、Xbox Series X|S 和 Xbox One 的游戏以及 Win32 编写 **Direct3D 12** C++ 代码。适用于 Windows 11 和 Windows 10 的桌面应用程序。
+    - [microsoft/DirectXTex](https://github.com/Microsoft/DirectXTex) DirectXTex texture processing library, 用于读取和写入.DDS文件以及执行各种**纹理**内容处理操作，包括调整大小、格式转换、mip 贴图生成、Direct3D 运行时纹理资源的块压缩以及高度图到法线贴图的转换。该库使用 Windows Image Component (WIC) API。它还包括.TGA读取.HDR器和写入器，因为这些图像文件格式通常用于纹理内容处理管道，但目前不受内置 WIC 编解码器的支持。
+    - [microsoft/DirectXMesh](https://github.com/Microsoft/DirectXMesh) 用于执行各种**几何**内容处理操作，包括生成法线和切线框架、三角形邻接计算、顶点缓存优化和网格生成。
+    - [microsoft/UVAtlas](https://github.com/Microsoft/UVAtlas) UVAtlas - isochart texture atlasing， 一个用于创建和打包等图纹理图集的共享源库。"texture atlas" 是计算机图形学中的一个概念，指的是将多个纹理图像组合到一个大的图像中，以优化纹理映射和内存使用的技术。"isochart texture atlas" 指的是一个集合了多个等图纹理的图像集
+
+- 示例代码
     - [walbourn/directx-sdk-samples](https://github.com/walbourn/directx-sdk-samples) *此存储库包含最初在旧版 DirectX SDK 中提供的 Direct3D 11、XInput 和 XAudio2 示例。这些都是适用于 Windows 7 Service Pack 1 或更高版本的 Windows 桌面应用程序*。这个人维护了很多 DirectX 官方的代码，猜测应该是 Directx 团队的员工。
     - [microsoft/DirectX-Graphics-Samples](https://github.com/microsoft/DirectX-Graphics-Samples) DirectX 12 的代码仓库。
 
 - 其他的
-    - [assimp/assimp](https://github.com/assimp/assimp) 加载各种3d模型文件
+    - [assimp/assimp](https://github.com/assimp/assimp) Open Asset Import Library 是一个将各种 3D 文件格式加载为共享内存格式的库。它支持 40 多种导入文件格式和越来越多的导出文件格式。
     - DirectX 3D UI库 `Dear ImGui`：[ocornut/imgui](https://github.com/ocornut/imgui) Dear ImGui 是一个用于 C++ 的无膨胀图形用户界面库
