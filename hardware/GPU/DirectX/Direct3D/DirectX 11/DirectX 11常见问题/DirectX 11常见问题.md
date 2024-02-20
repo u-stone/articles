@@ -174,6 +174,26 @@ chatgpt 的回答：
 总结来说，SyncInterval参数用于控制帧的显示时机，以平衡帧率和显示效果之间的权衡。根据您的需求和硬件性能，可以选择适当的SyncInterval值来获得满意的显示效果。
 ```
 
+#### ID3D11DeviceContext::VSSetConstantBuffers 中的 StartSlot 如何理解？
+
+文心一言回答：
+
+`startSlot` 参数是此函数的一个关键部分，它指定了开始设置常量缓冲区的槽位（slot）。在 Direct3D 中，常量缓冲区被用作从 CPU 传递数据到 GPU 的一种方式。这些数据可能包括矩阵、光照参数、材质属性等，这些都是顶点着色器或像素着色器在渲染过程中可能需要的。
+
+常量缓冲区是通过槽位来组织的，每个槽位可以容纳一个常量缓冲区。`startSlot` 参数指定了开始设置的槽位索引。例如，如果 `startSlot` 为 0，那么该函数将从第一个槽位开始设置常量缓冲区。
+
+此外，`VSSetConstantBuffers` 函数通常还接受一个 `NumBuffers` 参数，该参数指定了要设置的常量缓冲区的数量。因此，结合 `startSlot` 和 `NumBuffers`，您可以精确地指定要设置哪些槽位上的常量缓冲区。
+
+例如，如果您想设置第一个和第三个槽位上的常量缓冲区，您可能会这样调用 `VSSetConstantBuffers`：
+
+```cpp
+deviceContext->VSSetConstantBuffers(0, 1, &constantBuffer1); // 设置第一个槽位
+deviceContext->VSSetConstantBuffers(2, 1, &constantBuffer3); // 设置第三个槽位
+```
+这里，`constantBuffer1` 和 `constantBuffer3` 是指向常量缓冲区资源的指针。
+
+补充，除了起始地址，数量之外，常量类型本身包含了数据的大小，三者一起用来标识GPU中的数据更新区域。
+
 ### 第三方库
 
 #### CreateDDSTextureFromFile 加载 .dds 失败
@@ -195,7 +215,7 @@ chatgpt 的回答：
 - 微软的开源工具库，博客[Living without D3DX](https://walbourn.github.io/living-without-d3dx/)描述道： *“所有版本的 D3DX 均已弃用，并且不随 Windows 8.x SDK 一起提供。这包括 D3DX9、D3DX10 和 D3DX11。有很多选项可以将现有代码转移到更新的、更受支持的解决方案，其中大多数现在都是共享源代码。”*，同时给出了 **D3DX 移植表：**
     - [DirectXMath](https://learn.microsoft.com/en-us/windows/win32/dxmath/directxmath-portal) `XNAMATH` 的最新版本，DirectXMath API 为 DirectX 应用程序常见的常见线性代数和图形数学运算提供 SIMD 友好的 C++ 类型和函数。这个库微软开源并托管在了 GitHub 上：[microsoft/DirectXMath](https://github.com/Microsoft/DirectXMath)。支持 nuget 下载安装，可以在 [nuget 官网](https://www.nuget.org/packages) 上找到。如果在Windows 10 系统上使用 `#include <xnamath.h>` 结果编译器找不到对应头文件的话，就可以升级到 `DirectXMath` 库了。
     - [microsoft/FX11](https://github.com/Microsoft/FX11) Effects for Direct3D 11 (FX11) 是一个管理运行时，用于一起创作 HLSL 着色器、渲染状态和运行时变量。此代码设计为使用 Visual Studio 2019（16.11 或更高版本）或 Visual Studio 2022 进行构建。需要使用 Windows 10 May 2020 Update SDK（19041）或更高版本。
-    - [microsoft/DXUT](https://github.com/microsoft/DXUT/wiki)  多年来，DXUT 一直享有某种“半官方”地位，因为它在大多数 DirectX SDK 示例内容中使用。一些视频卡制造商的样品也采用了它。参考这里对它的描述 [DXUT for Win32 Desktop Update](https://walbourn.github.io/dxut-for-win32-desktop-update/)
+    - [microsoft/DXUT](https://github.com/microsoft/DXUT/wiki)  多年来，DXUT 一直享有某种“半官方”地位，因为它在大多数 DirectX SDK 示例内容中使用。一些视频卡制造商的样品也采用了它。参考这里对它的描述 [DXUT for Win32 Desktop Update](https://walbourn.github.io/dxut-for-win32-desktop-update/)，DXUT 严重依赖 D3DX 库中的功能，该库现已弃用，仅在 DirectX SDK 中可用。Direct3D 11 有许多 D3DX 替代品，但 Direct3D 9 没有。因此，如果您仍然需要 Windows XP 或 Direct3D 9 支持，则需要坚持使用已停产的 DirectX SDK（2010 年 6 月）发布，并继续依赖旧版DirectSetup部署模型。
     - [microsoft/DirectXTK](https://github.com/Microsoft/DirectXTK) DirectX Tool Kit for DirectX 11
     - [microsoft/DirectXTK12](https://github.com/Microsoft/DirectXTK12) 用于为 Windows 11 和 Windows 10 的通用 Windows 平台 (UWP) 应用程序、Xbox Series X|S 和 Xbox One 的游戏以及 Win32 编写 **Direct3D 12** C++ 代码。适用于 Windows 11 和 Windows 10 的桌面应用程序。
     - [microsoft/DirectXTex](https://github.com/Microsoft/DirectXTex) DirectXTex texture processing library, 用于读取和写入.DDS文件以及执行各种**纹理**内容处理操作，包括调整大小、格式转换、mip 贴图生成、Direct3D 运行时纹理资源的块压缩以及高度图到法线贴图的转换。该库使用 Windows Image Component (WIC) API。它还包括.TGA读取.HDR器和写入器，因为这些图像文件格式通常用于纹理内容处理管道，但目前不受内置 WIC 编解码器的支持。
@@ -203,7 +223,9 @@ chatgpt 的回答：
     - [microsoft/UVAtlas](https://github.com/Microsoft/UVAtlas) UVAtlas - isochart texture atlasing， 一个用于创建和打包等图纹理图集的共享源库。"texture atlas" 是计算机图形学中的一个概念，指的是将多个纹理图像组合到一个大的图像中，以优化纹理映射和内存使用的技术。"isochart texture atlas" 指的是一个集合了多个等图纹理的图像集
 
 - 示例代码
-    - [walbourn/directx-sdk-samples](https://github.com/walbourn/directx-sdk-samples) *此存储库包含最初在旧版 DirectX SDK 中提供的 Direct3D 11、XInput 和 XAudio2 示例。这些都是适用于 Windows 7 Service Pack 1 或更高版本的 Windows 桌面应用程序*。这个人维护了很多 DirectX 官方的代码，猜测应该是 Directx 团队的员工。
+    - [walbourn/directx-sdk-samples](https://github.com/walbourn/directx-sdk-samples) *此存储库包含 Direct3D 11、XInput 和 XAudio2 示例，这些示例来自旧版 DirectX SDK，已更新为使用 Windows 10 SDK 进行构建*。这个人维护了很多 DirectX 官方的代码，猜测应该是 Directx 团队的员工。
+        - [Direct3D11TutorialsFX11](https://github.com/walbourn/directx-sdk-samples/tree/main/Direct3D11TutorialsFX11) 其中学习 **FX11** 的教程代码，参考其中的 ReadMe 可以知道：*最初的Direct3D 10教程系列涵盖了Tutorial01至Tutorial07的Win32基础知识，Tutorial08至Tutorial10的DXUT，以及Tutorial11至Tutorial14的Effects 10。这是Tutorial11至Tutorial14的更新版本，用于Direct3D 11框架的DXUT和Win32桌面应用程序的Effects 11库。* 打开 `DirectX SDK (June 2010) ` 自带的 Sample Browser，随便打开一个示例代码，然后切换到 Documentation 可以看到全部 DirectX 9 - 11 的 Sample And Tutorials。其中可以找到对于 Tutorial 的说明。
+    - [walbourn/directx-sdk-legacy-samples](https://github.com/walbourn/directx-sdk-legacy-samples) *此存储库包含旧 DirectX SDK 中的 Direct3D 9、Direct3D 10、一些 Direct3D 11 和 DirectSound C++ 示例，这些示例已更新为使用 Windows 10 SDK 和 Microsoft.DXSDK.D3DX NuGet 包进行构建*
     - [microsoft/DirectX-Graphics-Samples](https://github.com/microsoft/DirectX-Graphics-Samples) DirectX 12 的代码仓库。
 
 - 其他的
