@@ -13,7 +13,7 @@ DirectX SDK下载地址:
 *   [mar09](https://download.microsoft.com/download/3/A/5/3A53CE87-F5C9-4CE5-92E1-5E2AF4841741/DXSDK_Mar09.exe) (无法下载了)
 *   [jun10](https://download.microsoft.com/download/A/E/7/AE743F1F-632B-4809-87A9-AA1BB3458E31/DXSDK_Jun10.exe)
 
-# MSDN官方资料
+# 官方资料
 
 相关技术文章 [DirectX Graphics Articles](https://docs.microsoft.com/en-us/windows/win32/direct3darticles/directx-graphics-articles-portal)，关注: 概述 [Graphics APIs in Windows](https://docs.microsoft.com/en-us/windows/win32/direct3darticles/graphics-apis-in-windows-vista) 操作系统、驱动模型与DirectX直接的关系。
 
@@ -43,7 +43,17 @@ DirectX SDK下载地址:
 
 以上资料都有英文版本，只需要把链接中的 `zh-cn` 修改为 `en-us` 即可。
 
+* [DirectX-Specs](https://microsoft.github.io/DirectX-Specs/) 发布了许多 DirectX 功能的工程规范。它补充了官方 API 文档的额外详细信息，对专家开发人员来说可能很有用。
+
 自从Win8开始，DirectX SDK包含在了Windows SDK中。[Where is the DirectX SDK?](https://docs.microsoft.com/en-us/windows/win32/directx-sdk--august-2009-)
+
+DirectX 最新版本的各类资料：
+
+- [DirectX Landing Page](https://devblogs.microsoft.com/directx/landing-page/) 此页面包含 Microsoft DirectX 团队已构建或正在积极开发的所有组件的最新版本的描述和链接。
+
+# 非官方资料
+
+- [rastertek](https://www.rastertek.com/tutindex.html) 介绍DirectX 11和OpenGL的教程。
 
 # 性能
 
@@ -68,6 +78,9 @@ Intel的性能分析工具：[Intel® Graphics Performance Analyzers](https://ww
 # 相关开源库
 
 - [DirectXMath](https://learn.microsoft.com/en-us/windows/win32/dxmath/directxmath-portal) `XNAMATH` 的最新版本，DirectXMath API 为 DirectX 应用程序常见的常见线性代数和图形数学运算提供 SIMD 友好的 C++ 类型和函数。这个库微软开源并托管在了 GitHub 上：[microsoft/DirectXMath](https://github.com/Microsoft/DirectXMath)。支持 nuget 下载安装，可以在 [nuget 官网](https://www.nuget.org/packages) 上找到。
-- []()
+- [microsoft/DirectXShaderCompiler](https://github.com/microsoft/DirectXShaderCompiler) 包括一个编译器和相关工具，用于将高级着色器语言 (HLSL) 程序编译为 DirectX 中间语言 (DXIL) 表示形式。使用 DirectX 进行图形、游戏和计算的应用程序可以使用它来生成着色器程序。
 
 
+# 开源图形编辑工具
+
+- [blender/blender](https://github.com/blender/blender) Blender 是免费的开源 3D 创作套件。它支持整个 3D 管道建模、绑定、动画、模拟、渲染、合成、运动跟踪和视频编辑。

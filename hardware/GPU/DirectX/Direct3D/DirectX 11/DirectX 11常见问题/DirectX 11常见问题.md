@@ -22,6 +22,12 @@
 - OM：Ouput-Merger Stage 输出合并阶段，【上一个阶段的像素送到这里进行输出合并，一些未通过测试的像素片段被丢弃，一些留下写入后台缓冲区，混合blend也在这里实现】
 - CS：Computer Shader Stage 计算着色阶段（这个没有出现在上图中，这个也叫做 `DirectCompute technology`）
 
+更为详细的图（来自：[Direct3D 11.3 Functional Specification](https://microsoft.github.io/DirectX-Specs/d3d/archive/D3D11_3_FunctionalSpec.htm) (**重要资料**，涵盖了 D3D 版本从 10 到 11.3 的所有功能) ）：
+
+![](./D3D11_3_CorePipe1.png)
+
+![](./D3D11_3_CorePipe2.png)
+
 # 调试
 ## 打印 HRESULT 错误信息
 
@@ -108,7 +114,7 @@ if (SUCCEEDED(hr))
 }
 ```
 
-## 调试
+## 调试 - 参考信息
 <!-- 理解的不太对，先隐藏了。
 - [HLSL Shader Debugger](https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2015/debugger/hlsl-shader-debugger?view=vs-2015) 直接调试 HLSL 源代码。不过对于 `VS 2017` 需要使用一个插件 [HLSL Tools for Visual Studio](https://marketplace.visualstudio.com/items?itemName=TimGJones.HLSLToolsforVisualStudio)，参考这个问答：[Debugging .FX files in Visual Studio not working](https://gamedev.stackexchange.com/questions/131240/debugging-fx-files-in-visual-studio-not-working)
 
@@ -119,7 +125,7 @@ if (SUCCEEDED(hr))
 
   ![](./hlsl-插件设置.jpg)
 -->
-- [DirectX 11 How to debug a vertex shader in visual studio](https://www.youtube.com/watch?v=3tb-w_X6-4Y) YouTuBe 上这个介绍如何使用 VS 的图形调试工具来调试 HLSL 文件。
+- [DirectX 11 How to debug a vertex shader in visual studio](https://www.youtube.com/watch?v=3tb-w_X6-4Y) YouTube 上这个介绍如何使用 VS 的图形调试工具来调试 HLSL 文件。
 - [Visual Studio Graphics Diagnostics](https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2017/debugger/graphics/visual-studio-graphics-diagnostics?view=vs-2017) `Visual Studio Graphics Diagnostics` 是一组用于记录并分析 Direct3D 应用程序中的渲染和性能问题的工具。图形诊断可用于在 Windows PC、Windows 设备模拟器或远程 PC 或设备上本地运行的应用程序。 *VS2017 中这个程序的稳定性不好，老是会崩溃*。
 - VS 中 `Analyze` 菜单下的性能分析工具。不过这个程序也老是出问题，进而导致VS崩溃。参考：[Performance Explorer](https://learn.microsoft.com/en-us/previous-versions/visualstudio/visual-studio-2017/profiling/performance-explorer?view=vs-2017)
 - [PIX on Windows](https://devblogs.microsoft.com/pix/introduction/)，PIX 是一款为使用 **`DirectX 12`** 的 Windows 和 Xbox 游戏开发人员提供的性能调优和调试工具。下载[地址](https://devblogs.microsoft.com/pix/download/)，下载的文件是一个安装文件，并且需要重启电脑（可能启用了某些系统级的功能） 这个功能在我的 Windows 10 on Mac(Intel) 环境下启动失败，修改设置还会卡死整个系统。看来是有兼容性问题的。同时这个工具对环境的要求：[Requirements](https://devblogs.microsoft.com/pix/requirements/)
@@ -128,9 +134,17 @@ if (SUCCEEDED(hr))
 
 *Windows 11 里面按下 Print Screen键会调用起系统的截图工具，对于一般的Windows用户这个可能比较实用，但是对于 DX 的开发者来说，这个功能会影响采集视频帧。关闭方法参考：[如何关闭win11系统自带截图](https://answers.microsoft.com/zh-hans/windows/forum/all/%E5%A6%82%E4%BD%95%E5%85%B3%E9%97%ADwin11%E7%B3%BB/d569f681-d0e6-4b97-8c19-14850dbe45a5)*
 
+## directx 哪个版本的 shader 文件使用后缀名 fx ?
+
+DirectX 9使用的是后缀名为.fx的shader文件。在DirectX 9中，使用的是HLSL 2.0版本的shader语言，并且将shader代码保存在.fx文件中。这些.fx文件包含了顶点着色器、像素着色器以及其他类型的着色器代码。然而，从DirectX 10开始，Microsoft不再推荐使用.fx文件，而是建议使用更灵活和可扩展的.hlsl文件来存储和管理着色器代码。因此，从DirectX 10及之后的版本开始，一般不再使用.fx文件作为shader文件的后缀名。
+
+## 还要学习 Effect 框架吗？
+
+知乎上有一个问题：[DirectX 11 抛弃了Effect框架后，那么大家都是自己封装一个框架么？](https://www.zhihu.com/question/29173031)，根据大牛`叛逆者`的回答说，微软开源这个框架主要是因为各个公司都有一套自己的 `Effect` 框架，都不用微软的，所以微软干脆开源了，并且不再维护了。而这个 Effect 框架，通过自己调试代码大概浏览了一下发现，也就是对 DirectX API 的一个封装。
+
 # 基础
 
-## 环境配置
+## 使用 DirectX SDK 的环境配置
 
 记得设置下面的配置项：
 

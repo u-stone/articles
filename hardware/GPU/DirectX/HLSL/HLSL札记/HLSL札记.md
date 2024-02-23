@@ -15,9 +15,16 @@
 ## 如何编写 HLSL
 
 ### 扩展名
-- 扩展名为 .hlsl 的文件包含高级着色语言 (HLSL) 源代码。还支持较旧的 .fx 扩展名，但通常与旧版效果系统相关联。
+- 扩展名为 .hlsl 的文件包含高级着色语言 (HLSL) 源代码。还支持较旧的 .fx 扩展名，但通常与旧版效果系统相关联。扩展名为 .fx 的文件是 DirectX 10 之前的版本中使用的后缀名，现在微软推荐使用 .hlsl 后缀名。
 - 扩展名为 .cso 的文件包含已编译的着色器对象。
 - 扩展名为 .h 的文件是一个头文件，但在着色器代码上下文中，该头文件定义了一个保存着色器数据的字节数组。HLSL 着色器代码头的其他常见扩展名包括 .hlsli 和 .fxh。
+
+编译方式：
+
+- [Porting shaders from FXC to DXC](https://github.com/microsoft/DirectXShaderCompiler/wiki/Porting-shaders-from-FXC-to-DXC) 推荐使用 dxc.exe。
+
+`小知识: DXBC 是 fxc.exe 编译 shader 使用的中间语言；对应 dxc.exe 的中间语言是 DXIL`。ref: [HLSL Compiler | Michael Dougherty | DirectX Developer Day](https://www.youtube.com/watch?v=tyyKeTsdtmo)
+
 
 ### 编写方式
 
