@@ -75,8 +75,9 @@ drwxr-xr-x   4 hj  staff   128B Jul  4 16:47 share
 
 ## 网站
 
-- ffmpeg官网的 [wiki](https://trac.ffmpeg.org/) **这是一个必须重视的网站**
-- ffmpeg文档中提到的一个网站 **[MultimediaWiki](https://wiki.multimedia.cx/index.php)** *它致力于打造一个收集各种与多媒体有关的信息获取和编辑的地方*
+- ffmpeg 官网的 [wiki](https://trac.ffmpeg.org/) **这是一个必须重视的网站**
+- ffmpeg 出包的GitHub：[BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds)
+- ffmpeg 文档中提到的一个网站 **[MultimediaWiki](https://wiki.multimedia.cx/index.php)** *它致力于打造一个收集各种与多媒体有关的信息获取和编辑的地方*
 - [即时通信网](http://www.52im.net/) 里面有好多大牛
 - LiveVideoStack的的一些专题的 [演讲回顾](http://sh2019.livevideostack.com/article) 我们沪江的唐小浙是LiveVideoStack的联席主席之一，*大招*在里面是讲师。
 - [xiph](https://www.xiph.org) 一个制定免费开源音视频编码实现的非盈利机构，制定了Theora 视频编码、Vorbis 音频编码、Ogg 容器格式。还提供了一些测试资源 [Xiph.org Test Media](https://media.xiph.org)

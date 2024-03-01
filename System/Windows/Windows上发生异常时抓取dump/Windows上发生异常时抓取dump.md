@@ -961,6 +961,8 @@ MSDN上的资料：
 
 [Getting an exception call stack from the catch block (C++) ](https://docs.microsoft.com/en-us/archive/blogs/slavao/getting-an-exception-call-stack-from-the-catch-block-c) MSDN上的一篇blog，介绍了C++的try-catch抓到一个异常之后如何获取到call stack。有点高深，没看懂。
 
+[The case of the disappearing OnLoad exception – user-mode callback exceptions in x64](https://web.archive.org/web/20121130012357/http://blog.paulbetts.org/index.php/2010/07/20/the-case-of-the-disappearing-onload-exception-user-mode-callback-exceptions-in-x64/) 一篇介绍 SEH 代码被吞掉的文章，问题出现在 Vista + Win7上，Win7后来出了一个补丁处理这个问题。这篇文章有一段落从硬件+系统层面介绍了一下异常访问和除零异常，值得一读。
+
 [windows下捕获dump](https://www.cnblogs.com/cswuyg/p/3207576.html)  有一个写好的例子。不过，只支持32位。
 
 [SetUnhandledExceptionFilter and the C/C++ Runtime Library](https://www.codeproject.com/Articles/154686/SetUnhandledExceptionFilter-and-the-C-C-Runtime-Li)  介绍如何通过API Hook的方法，让别的调用无法替换自己设置的Top-Level未处理异常函数。
