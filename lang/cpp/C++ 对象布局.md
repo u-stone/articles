@@ -1,3 +1,6 @@
+[toc]
+# Windows 下 MSVC 的 cpp 对象内存布局
+
 打开VS新建一个控制台程序，然后写入以下代码：
 
 ```
@@ -156,10 +159,10 @@ int main()
 可以看到C++对象的布局。可以发现：
 1. 类中的虚函数数量不影响类对象的大小
 2. 但是，如果类中只要有一个虚函数，就会有一个虚表指针，也就是会增大4byte（32位程序）。
-3. 虚表放在了其他地方，仅需要虚指针可以找到即可，所以不占用对象大小，参考Derived2::$vftable@:和Derived3::$vftable@:。
+3. 虚表放在了其他地方，仅需要虚指针可以找到即可，所以不占用对象大小，参考`Derived2::$vftable@:和Derived3::$vftable@:`。
 4. 虚基类和非虚基类同时被继承的话，内存上先做虚基类的布局。参考Derived2。
 
-# C++ 虚继承以及内存布局
+# C++ 虚继承
 
 *本篇源码部分来自clang，部分来自《C++程序设计语言 4th》的21章。*
 
@@ -393,662 +396,1190 @@ virtual可以与public、protected、private配合出现，二者组合顺序无
 
 那么，std::iostream如何使用呢？好像很少见到使用的场景。一般单独使用cin和cout。
 
-## 看一个例子，观察虚继承对象内存结构
+# C++ 对象内存结构
 
-写一个示例代码test.cpp，使用clang查看内存结构：
+下面主要通过几个命令观察一下 C++ 类对象在不同情况下成员变量，以及虚表和虚指针的内存布局：
 
-查看下面的数据的时候，要注意：对于堆来讲，生长方向是向上的，也就是向着内存地址增加的方向；对于栈来讲，它的生长方式是向下的，是向着内存地址减小的方向增长。
+*clang 使用命令 `-fdump-vtable-layouts` 可以观察虚表结构，使用 `-fdump-record-layouts` 可以观察对象内存结构。下面代码使用这二者可以分别观察：观察到内存结构的变化。*
 
-```c
-struct A
-{
-    int ax;
-    virtual void f0() {}
-    virtual void bar() {}
+## 最简单的类
+
+```C++
+class Base {
+public:
+    Base() {}
+    int a = 0;
+    int b = 0;
 };
-
-struct B : virtual public A
-{
-    int bx;
-    void f0() {}
-};
-
-struct C : virtual public A
-{
-    int cx;
-    void f0() {}
-};
-
-struct D : public B, public C
-{
-    int dx;
-    void f0() {}
-};
-
 int main()
 {
-    D d;
+    Base b;
     return 0;
 }
 ```
 
-使用命令：clang -cc1 -stdlib=libc++ -fdump-record-layouts -fdump-vtable-layouts -emit-llvm ./test.cpp
+没有虚表和虚指针，只能看到一个对象成员变量的内存结构：
 
-```c
+```C++
+//clang -cc1 -std=c++11 -stdlib=libc++ -fdump-vtable-layouts -fdump-record-layouts -emit-llvm ./test.cpp
+
 *** Dumping AST Record Layout
-         0 | struct A
-         0 |   (A vtable pointer)
-         8 |   int ax
+         0 | class Base
+         0 |   int a
+         4 |   int b
+           | [sizeof=8, dsize=8, align=4,
+           |  nvsize=8, nvalign=4]
+```
+
+## 最简单的继承
+
+```c++
+class Base {
+public:
+    Base() {}
+    int a = 0;
+    int b = 0;
+};
+class Derived : public Base {
+public:
+    Derived() :Base() {}
+
+    char c = 0;
+    int d = 0;
+};
+int main()
+{
+    Derived d;
+    return 0;
+}
+```
+
+对应的内存结构是：
+
+```c++
+//clang -cc1 -std=c++11 -stdlib=libc++ -fdump-record-layouts  -emit-llvm ./test.cpp
+
+*** Dumping AST Record Layout
+         0 | class Base
+         0 |   int a
+         4 |   int b
+           | [sizeof=8, dsize=8, align=4,
+           |  nvsize=8, nvalign=4]
+
+*** Dumping AST Record Layout
+         0 | class Derived
+         0 |   class Base (base)
+         0 |     int a
+         4 |     int b
+         8 |   char c
+        12 |   int d
+           | [sizeof=16, dsize=16, align=4,
+           |  nvsize=16, nvalign=4]
+...
+```
+
+可以看到子类的内存结构就是在父类的结尾按序排列的。
+
+## 最简单的虚类
+
+```C++
+class Base {
+public:
+    Base() {}
+    virtual void test() {}
+
+    int a = 0;
+    int b = 0;
+};
+
+int main()
+{
+    Base b;
+    return 0;
+}
+```
+
+虚表的结构如下：
+
+```C++
+// clang -cc1 -std=c++11 -stdlib=libc++ -fdump-vtable-layouts -fdump-record-layouts -emit-llvm ./test.cpp
+
+*** Dumping AST Record Layout
+         0 | class Base
+         0 |   (Base vtable pointer) // 这里加了一个虚指针，位于对象的首地址
+         8 |   int a                 // 然后是成员变量的内存布局 
+        12 |   int b
+           | [sizeof=16, dsize=16, align=8,
+           |  nvsize=16, nvalign=8]
+...
+
+Original map
+Vtable for 'Base' (3 entries).
+   0 | offset_to_top (0) // 这里记录当前虚类相对于第一个继承的父类对象虚表基地址的偏移，这里没有父类，偏移为0
+   1 | Base RTTI
+       -- (Base, 0) vtable address --
+   2 | void Base::test()
+
+VTable indices for 'Base' (1 entries).
+   0 | void Base::test()
+```
+
+## 虚类派生一个子类
+
+```c++
+class Base {
+public:
+    Base() {}
+    int a = 0;
+    int b = 0;
+
+    virtual void virtual_fun_in_Base() {}
+};
+
+class Derived : public Base {
+public:
+    Derived() :Base() {}
+
+    char c = 0;
+    int d = 0;
+};
+
+int main()
+{
+    Derived d;
+    return 0;
+}
+```
+
+输出内存变成了：
+
+```c++
+// clang -cc1 -std=c++11 -stdlib=libc++ -fdump-vtable-layouts -fdump-record-layouts -emit-llvm ./test.cpp
+
+*** Dumping AST Record Layout
+         0 | class Base
+         0 |   (Base vtable pointer)
+         8 |   int a
+        12 |   int b
+           | [sizeof=16, dsize=16, align=8,
+           |  nvsize=16, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class Derived
+         0 |   class Base (primary base)
+         0 |     (Base vtable pointer)
+         8 |     int a
+        12 |     int b
+        16 |   char c
+        20 |   int d
+           | [sizeof=24, dsize=24, align=8,
+           |  nvsize=24, nvalign=8]
+...
+// 下面是虚表
+Original map
+Vtable for 'Derived' (3 entries).
+   0 | offset_to_top (0)
+   1 | Derived RTTI
+       -- (Base, 0) vtable address --
+       -- (Derived, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()
+
+
+Original map
+Vtable for 'Base' (3 entries).
+   0 | offset_to_top (0)
+   1 | Base RTTI
+       -- (Base, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()
+
+VTable indices for 'Base' (1 entries).
+   0 | void Base::virtual_fun_in_Base()
+```
+
+看一下子类 `Derived` 虚表中，保存了一个父类的虚表地址 `-- (Base, 0) vtable address --`，同时还有一个自己的地址：`-- (Derived, 0) vtable address --`。
+
+## 派生类重载基类的虚函数
+
+```C++
+class Base {
+public:
+    Base() {}
+    int a = 0;
+    int b = 0;
+    virtual void virtual_fun_in_Base() {
+    }
+};
+
+class Derived : public Base {
+public:
+    Derived() :Base() {}
+
+    char c = 0;
+    int d = 0;
+
+    virtual void virtual_fun_in_Base() override {
+    }
+    virtual void virtual_fun_in_Derived() {
+    }
+};
+```
+
+对应的内存布局：
+
+```C++
+// clang -cc1 -std=c++11 -stdlib=libc++ -fdump-vtable-layouts -fdump-record-layouts -emit-llvm ./test.cpp -o test
+
+*** Dumping AST Record Layout
+         0 | class Base
+         0 |   (Base vtable pointer)
+         8 |   int a
+        12 |   int b
+           | [sizeof=16, dsize=16, align=8,
+           |  nvsize=16, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class Derived
+         0 |   class Base (primary base)
+         0 |     (Base vtable pointer)
+         8 |     int a
+        12 |     int b
+        16 |   char c
+        20 |   int d
+           | [sizeof=24, dsize=24, align=8,
+           |  nvsize=24, nvalign=8]
+...
+// 下面是虚表
+Original map
+ void Derived::virtual_fun_in_Base() -> void Base::virtual_fun_in_Base() // 子类的这个方法指向了父类的方法（虚函数出现重载，才会有这一行）
+Vtable for 'Derived' (3 entries).
+   0 | offset_to_top (0)
+   1 | Derived RTTI
+       -- (Base, 0) vtable address --
+       -- (Derived, 0) vtable address --
+   2 | void Derived::virtual_fun_in_Base()
+
+VTable indices for 'Derived' (1 entries).
+   0 | void Derived::virtual_fun_in_Base()
+
+Original map
+ void Derived::virtual_fun_in_Base() -> void Base::virtual_fun_in_Base()
+Vtable for 'Base' (3 entries).
+   0 | offset_to_top (0)
+   1 | Base RTTI
+       -- (Base, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()
+
+VTable indices for 'Base' (1 entries).
+   0 | void Base::virtual_fun_in_Base()
+```
+
+对比一下可以发现，`Derived` 虚表中的 `virtual_fun_in_Base` 方法，从之前的 `Base::virtual_fun_in_Base()` 变成了 `Derived::virtual_fun_in_Base()`。
+
+## 派生类新增一个虚函数
+
+```C++
+class Derived : public Base {
+public:
+    ...
+    virtual void virtual_fun_in_Derived() {}
+};
+```
+
+输出：
+
+```C++
+// clang -cc1 -std=c++11 -stdlib=libc++ -fdump-vtable-layouts -fdump-record-layouts -emit-llvm ./test.cpp
+*** Dumping AST Record Layout
+         0 | class Base
+         0 |   (Base vtable pointer)
+         8 |   int a
+        12 |   int b
+           | [sizeof=16, dsize=16, align=8,
+           |  nvsize=16, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class Derived
+         0 |   class Base (primary base)
+         0 |     (Base vtable pointer)      // 子类对象内存布局首地址仍然是虚指针
+         8 |     int a
+        12 |     int b
+        16 |   char c
+        20 |   int d
+           | [sizeof=24, dsize=24, align=8,
+           |  nvsize=24, nvalign=8]
+
+...
+
+Original map
+ void Derived::virtual_fun_in_Base() -> void Base::virtual_fun_in_Base() // 子类重载的方法指向父类的方法
+Vtable for 'Derived' (4 entries).
+   0 | offset_to_top (0)
+   1 | Derived RTTI
+       -- (Base, 0) vtable address --
+       -- (Derived, 0) vtable address --
+   2 | void Derived::virtual_fun_in_Base()
+   3 | void Derived::virtual_fun_in_Derived()
+
+VTable indices for 'Derived' (2 entries).       // 子类的虚表，包含两个虚函数的入口
+   0 | void Derived::virtual_fun_in_Base()
+   1 | void Derived::virtual_fun_in_Derived()
+
+Original map
+ void Derived::virtual_fun_in_Base() -> void Base::virtual_fun_in_Base()
+Vtable for 'Base' (3 entries).
+   0 | offset_to_top (0)                        // 首地址仍然偏移 0
+   1 | Base RTTI
+       -- (Base, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()
+
+VTable indices for 'Base' (1 entries).         // 父类的虚表中，只有父类的虚函数入口
+   0 | void Base::virtual_fun_in_Base()
+```
+
+思考一下可以想到，如果子类对象构建的时候，直接把基类的虚指针指向子类的虚表即可。
+
+## 非虚基类，派生类新增虚函数
+
+```C++
+class Base {
+public:
+    Base() {}
+    int a = 0;
+    int b = 0;
+};
+
+class Derived : public Base {
+public:
+    Derived() :Base() {}
+
+    char c = 0;
+    int d = 0;
+
+    virtual void virtual_fun_in_Derived() {}
+};
+```
+
+输出：
+
+```C++
+// clang -cc1 -std=c++11 -stdlib=libc++ -fdump-vtable-layouts -fdump-record-layouts -emit-llvm ./test.cpp
+
+*** Dumping AST Record Layout
+         0 | class Base
+         0 |   int a                        // 父类这里没有虚指针
+         4 |   int b
+           | [sizeof=8, dsize=8, align=4,
+           |  nvsize=8, nvalign=4]
+
+*** Dumping AST Record Layout
+         0 | class Derived
+         0 |   (Derived vtable pointer)     // 子类这里有一个虚指针
+         8 |   class Base (base)            // 然后才是成员变量的布局
+         8 |     int a
+        12 |     int b
+        16 |   char c
+        20 |   int d
+           | [sizeof=24, dsize=24, align=8,
+           |  nvsize=24, nvalign=8]
+...
+Original map
+Vtable for 'Derived' (3 entries).
+   0 | offset_to_top (0)
+   1 | Derived RTTI
+       -- (Derived, 0) vtable address --    // 只有子类虚表地址
+   2 | void Derived::virtual_fun_in_Derived()
+
+VTable indices for 'Derived' (1 entries).
+   0 | void Derived::virtual_fun_in_Derived()
+```
+
+## 多继承
+
+### 一个父类为非虚类，一个为虚类
+
+```C++
+class Base {
+public:
+    Base() {}
+    int a = 0;
+    int b = 0;
+};
+
+class Derived : public Base {
+public:
+    Derived() :Base() {}
+
+    char c = 0;
+    int d = 0;
+
+    virtual void virtual_fun_in_Derived() {
+    }
+    virtual void virtual_fun_in_Derived_v2() {
+    }
+};
+
+
+class Base2 {
+public:
+    virtual void virtual_fun_in_Base2() {}
+
+    int e = 0;
+};
+
+class Derived2 : public Base, public Base2 {
+public:
+    virtual void virtual_fun_in_Derived2() {} // 新增一个虚函数
+    double f = 0.0;
+};
+```
+
+```C++
+// clang -cc1 -std=c++11 -stdlib=libc++ -fdump-vtable-layouts -fdump-record-layouts -emit-llvm ./test.cpp
+
+*** Dumping AST Record Layout
+         0 | class Base
+         0 |   int a
+         4 |   int b
+           | [sizeof=8, dsize=8, align=4,
+           |  nvsize=8, nvalign=4]
+
+*** Dumping AST Record Layout
+         0 | class Base2
+         0 |   (Base2 vtable pointer)
+         8 |   int e
            | [sizeof=16, dsize=12, align=8,
            |  nvsize=12, nvalign=8]
 
 *** Dumping AST Record Layout
-         0 | struct B
-         0 |   (B vtable pointer)
-         8 |   int bx
-        16 |   struct A (virtual base)
-        16 |     (A vtable pointer)
-        24 |     int ax
-           | [sizeof=32, dsize=28, align=8,
-           |  nvsize=12, nvalign=8]
-
-*** Dumping AST Record Layout
-         0 | struct C
-         0 |   (C vtable pointer)
-         8 |   int cx
-        16 |   struct A (virtual base)
-        16 |     (A vtable pointer)
-        24 |     int ax
-           | [sizeof=32, dsize=28, align=8,
-           |  nvsize=12, nvalign=8]
-
-*** Dumping AST Record Layout
-         0 | struct D
-         0 |   struct B (primary base)
-         0 |     (B vtable pointer)
-         8 |     int bx
-        16 |   struct C (base)
-        16 |     (C vtable pointer)
-        24 |     int cx
-        28 |   int dx
-        32 |   struct A (virtual base)
-        32 |     (A vtable pointer)
-        40 |     int ax
-           | [sizeof=48, dsize=44, align=8,
+         0 | class Derived2
+         0 |   class Base2 (primary base)   // 内存布局中，首地址为虚父类 Base2
+         0 |     (Base2 vtable pointer)     // 然后是Base2的虚指针
+         8 |     int e                      // Base2 的成员变量
+        12 |   class Base (base)            // 然后是另一个父类 Base
+        12 |     int a
+        16 |     int b
+        24 |   double f                     // 最后是子类 Derived2 的成员变量
+           | [sizeof=32, dsize=32, align=8,
            |  nvsize=32, nvalign=8]
-
-*** Dumping IRgen Record Layout
-Record: CXXRecordDecl 0x7f8398078700 <./test.cpp:1:1, line:6:1> line:1:8 referenced struct A definition
-|-DefinitionData polymorphic
-| |-DefaultConstructor exists non_trivial
-| |-CopyConstructor simple non_trivial has_const_param implicit_has_const_param
-| |-MoveConstructor exists simple non_trivial needs_implicit
-| |-CopyAssignment non_trivial has_const_param implicit_has_const_param
-| |-MoveAssignment exists simple non_trivial needs_implicit
-| `-Destructor simple irrelevant trivial
-|-CXXRecordDecl 0x7f8398078818 <col:1, col:8> col:8 implicit struct A
-|-FieldDecl 0x7f83980788c0 <line:3:5, col:9> col:9 ax 'int'
-|-CXXMethodDecl 0x7f8398078958 <line:4:5, col:24> col:18 f0 'void ()' virtual
-| `-CompoundStmt 0x7f8398078db8 <col:23, col:24>
-|-CXXMethodDecl 0x7f8398078a18 <line:5:5, col:25> col:18 bar 'void ()' virtual
-| `-CompoundStmt 0x7f8398078dc8 <col:24, col:25>
-|-CXXMethodDecl 0x7f8398078b18 <line:1:8> col:8 implicit operator= 'A &(const A &)' inline default noexcept-unevaluated 0x7f8398078b18
-| `-ParmVarDecl 0x7f8398078c28 <col:8> col:8 'const A &'
-|-CXXDestructorDecl 0x7f8398078cb0 <col:8> col:8 implicit ~A 'void ()' inline default trivial noexcept-unevaluated 0x7f8398078cb0
-|-CXXConstructorDecl 0x7f83980a3ef8 <col:8> col:8 implicit used A 'void () throw()' inline default
-| `-CompoundStmt 0x7f83980a4278 <col:8>
-`-CXXConstructorDecl 0x7f83980a40f0 <col:8> col:8 implicit A 'void (const A &)' inline default noexcept-unevaluated 0x7f83980a40f0
-  `-ParmVarDecl 0x7f83980a4208 <col:8> col:8 'const A &'
-
-Layout: <CGRecordLayout
-  LLVMType:%struct.A = type <{ i32 (...)**, i32, [4 x i8] }>
-  NonVirtualBaseLLVMType:%struct.A.base = type <{ i32 (...)**, i32 }>
-  IsZeroInitializable:1
-  BitFields:[
-]>
-
-*** Dumping IRgen Record Layout
-Record: CXXRecordDecl 0x7f8398078dd8 <./test.cpp:8:1, line:12:1> line:8:8 referenced struct B definition
-|-DefinitionData polymorphic
-| |-DefaultConstructor exists non_trivial
-| |-CopyConstructor simple non_trivial has_const_param implicit_has_const_param
-| |-MoveConstructor exists simple non_trivial needs_implicit
-| |-CopyAssignment non_trivial has_const_param implicit_has_const_param
-| |-MoveAssignment exists simple non_trivial needs_implicit
-| `-Destructor simple irrelevant trivial
-|-virtual public 'A'
-|-CXXRecordDecl 0x7f8398078f50 <col:1, col:8> col:8 implicit struct B
-|-FieldDecl 0x7f8398078ff8 <line:10:5, col:9> col:9 bx 'int'
-|-CXXMethodDecl 0x7f8398079068 <line:11:5, col:16> col:10 f0 'void ()'
-| |-Overrides: [ 0x7f8398078958 A::f0 'void ()' ]
-| `-CompoundStmt 0x7f8398079408 <col:15, col:16>
-|-CXXMethodDecl 0x7f8398079168 <line:8:8> col:8 implicit operator= 'B &(const B &)' inline default noexcept-unevaluated 0x7f8398079168
-| `-ParmVarDecl 0x7f8398079278 <col:8> col:8 'const B &'
-|-CXXDestructorDecl 0x7f8398079300 <col:8> col:8 implicit ~B 'void ()' inline default trivial noexcept-unevaluated 0x7f8398079300
-|-CXXConstructorDecl 0x7f83980a3e00 <col:8> col:8 implicit used B 'void () throw()' inline default
-| |-CXXCtorInitializer 'A'
-| | `-CXXConstructExpr 0x7f83980a4468 <col:8> 'A' 'void () throw()'
-| `-CompoundStmt 0x7f83980a44d0 <col:8>
-`-CXXConstructorDecl 0x7f83980a42e8 <col:8> col:8 implicit B 'void (const B &)' inline default noexcept-unevaluated 0x7f83980a42e8
-  `-ParmVarDecl 0x7f83980a43f8 <col:8> col:8 'const B &'
-
-Layout: <CGRecordLayout
-  LLVMType:%struct.B = type <{ i32 (...)**, i32, [4 x i8], %struct.A.base, [4 x i8] }>
-  NonVirtualBaseLLVMType:%struct.B.base = type <{ i32 (...)**, i32 }>
-  IsZeroInitializable:1
-  BitFields:[
-]>
-
-*** Dumping IRgen Record Layout
-Record: CXXRecordDecl 0x7f8398079418 <./test.cpp:14:1, line:18:1> line:14:8 referenced struct C definition
-|-DefinitionData polymorphic
-| |-DefaultConstructor exists non_trivial
-| |-CopyConstructor simple non_trivial has_const_param implicit_has_const_param
-| |-MoveConstructor exists simple non_trivial needs_implicit
-| |-CopyAssignment non_trivial has_const_param implicit_has_const_param
-| |-MoveAssignment exists simple non_trivial needs_implicit
-| `-Destructor simple irrelevant trivial
-|-virtual public 'A'
-|-CXXRecordDecl 0x7f83980a2200 <col:1, col:8> col:8 implicit struct C
-|-FieldDecl 0x7f83980a22a8 <line:16:5, col:9> col:9 cx 'int'
-|-CXXMethodDecl 0x7f83980a2318 <line:17:5, col:16> col:10 f0 'void ()'
-| |-Overrides: [ 0x7f8398078958 A::f0 'void ()' ]
-| `-CompoundStmt 0x7f83980a26b8 <col:15, col:16>
-|-CXXMethodDecl 0x7f83980a2418 <line:14:8> col:8 implicit operator= 'C &(const C &)' inline default noexcept-unevaluated 0x7f83980a2418
-| `-ParmVarDecl 0x7f83980a2528 <col:8> col:8 'const C &'
-|-CXXDestructorDecl 0x7f83980a25b0 <col:8> col:8 implicit ~C 'void ()' inline default trivial noexcept-unevaluated 0x7f83980a25b0
-|-CXXConstructorDecl 0x7f83980a4010 <col:8> col:8 implicit used C 'void () throw()' inline default
-| |-CXXCtorInitializer 'A'
-| | `-CXXConstructExpr 0x7f83980a46c8 <col:8> 'A' 'void () throw()'
-| `-CompoundStmt 0x7f83980a4730 <col:8>
-`-CXXConstructorDecl 0x7f83980a4540 <col:8> col:8 implicit C 'void (const C &)' inline default noexcept-unevaluated 0x7f83980a4540
-  `-ParmVarDecl 0x7f83980a4658 <col:8> col:8 'const C &'
-
-Layout: <CGRecordLayout
-  LLVMType:%struct.C = type <{ i32 (...)**, i32, [4 x i8], %struct.A.base, [4 x i8] }>
-  NonVirtualBaseLLVMType:%struct.C.base = type <{ i32 (...)**, i32 }>
-  IsZeroInitializable:1
-  BitFields:[
-]>
-
-*** Dumping IRgen Record Layout
-Record: CXXRecordDecl 0x7f83980a26c8 <./test.cpp:20:1, line:24:1> line:20:8 referenced struct D definition
-|-DefinitionData polymorphic
-| |-DefaultConstructor exists non_trivial
-| |-CopyConstructor simple non_trivial has_const_param implicit_has_const_param
-| |-MoveConstructor exists simple non_trivial needs_implicit
-| |-CopyAssignment non_trivial has_const_param implicit_has_const_param
-| |-MoveAssignment exists simple non_trivial needs_implicit
-| `-Destructor simple irrelevant trivial
-|-public 'B'
-|-public 'C'
-|-CXXRecordDecl 0x7f83980a2880 <col:1, col:8> col:8 implicit struct D
-|-FieldDecl 0x7f83980a2928 <line:22:5, col:9> col:9 dx 'int'
-|-CXXMethodDecl 0x7f83980a2998 <line:23:5, col:16> col:10 f0 'void ()'
-| |-Overrides: [ 0x7f8398079068 B::f0 'void ()', 0x7f83980a2318 C::f0 'void ()' ]
-| `-CompoundStmt 0x7f83980a2d38 <col:15, col:16>
-|-CXXMethodDecl 0x7f83980a2a98 <line:20:8> col:8 implicit operator= 'D &(const D &)' inline default noexcept-unevaluated 0x7f83980a2a98
-| `-ParmVarDecl 0x7f83980a2ba8 <col:8> col:8 'const D &'
-|-CXXDestructorDecl 0x7f83980a2c30 <col:8> col:8 implicit ~D 'void ()' inline default trivial noexcept-unevaluated 0x7f83980a2c30
-|-CXXConstructorDecl 0x7f83980a2f40 <col:8> col:8 implicit used D 'void () throw()' inline default
-| |-CXXCtorInitializer 'A'
-| | `-CXXConstructExpr 0x7f83980a4288 <col:8> 'A' 'void () throw()'
-| |-CXXCtorInitializer 'B'
-| | `-CXXConstructExpr 0x7f83980a44e0 <col:8> 'B' 'void () throw()'
-| |-CXXCtorInitializer 'C'
-| | `-CXXConstructExpr 0x7f83980a4740 <col:8> 'C' 'void () throw()'
-| `-CompoundStmt 0x7f83980a47b8 <col:8>
-`-CXXConstructorDecl 0x7f83980a3020 <col:8> col:8 implicit D 'void (const D &)' inline default noexcept-unevaluated 0x7f83980a3020
-  `-ParmVarDecl 0x7f83980a3138 <col:8> col:8 'const D &'
-
-Layout: <CGRecordLayout
-  LLVMType:%struct.D = type { %struct.B.base, [4 x i8], %struct.C.base, i32, %struct.A.base, [4 x i8] }
-  NonVirtualBaseLLVMType:%struct.D.base = type { %struct.B.base, [4 x i8], %struct.C.base, i32 }
-  IsZeroInitializable:1
-  BitFields:[
-]>
+...
 Original map
- void D::f0() -> void B::f0()
-Vtable for 'D' (14 entries).
-   0 | vbase_offset (32)
-   1 | offset_to_top (0)
-   2 | D RTTI
-       -- (B, 0) vtable address --
-       -- (D, 0) vtable address --
-   3 | void D::f0()
-   4 | vbase_offset (16)
-   5 | offset_to_top (-16)
-   6 | D RTTI
-       -- (C, 16) vtable address --
-   7 | void D::f0()
-       [this adjustment: -16 non-virtual] method: void C::f0()
-   8 | vcall_offset (0)
-   9 | vcall_offset (-32)
-  10 | offset_to_top (-32)
-  11 | D RTTI
-       -- (A, 32) vtable address --
-  12 | void D::f0()
-       [this adjustment: 0 non-virtual, -24 vcall offset offset] method: void A::f0()
-  13 | void A::bar()
-
-Virtual base offset offsets for 'D' (1 entry).
-   A | -24
-
-Thunks for 'void D::f0()' (2 entries).
-   0 | this adjustment: -16 non-virtual
-   1 | this adjustment: 0 non-virtual, -24 vcall offset offset
-
-VTable indices for 'D' (1 entries).
-   0 | void D::f0()
-
-Original map
- void D::f0() -> void B::f0()
-Construction vtable for ('B', 0) in 'D' (10 entries).
-   0 | vbase_offset (32)
-   1 | offset_to_top (0)
-   2 | B RTTI
-       -- (B, 0) vtable address --
-   3 | void B::f0()
-   4 | vcall_offset (0)
-   5 | vcall_offset (-32)
-   6 | offset_to_top (-32)
-   7 | B RTTI
-       -- (A, 32) vtable address --
-   8 | void B::f0()
-       [this adjustment: 0 non-virtual, -24 vcall offset offset] method: void A::f0()
-   9 | void A::bar()
-
-Original map
- void D::f0() -> void B::f0()
-Construction vtable for ('C', 16) in 'D' (10 entries).
-   0 | vbase_offset (16)
-   1 | offset_to_top (0)
-   2 | C RTTI
-       -- (C, 16) vtable address --
-   3 | void C::f0()
-   4 | vcall_offset (0)
-   5 | vcall_offset (-16)
-   6 | offset_to_top (-16)
-   7 | C RTTI
-       -- (A, 32) vtable address --
-   8 | void C::f0()
-       [this adjustment: 0 non-virtual, -24 vcall offset offset] method: void A::f0()
-   9 | void A::bar()
-
-Original map
- void D::f0() -> void B::f0()
-Vtable for 'A' (4 entries).
+Vtable for 'Derived2' (3 entries).
    0 | offset_to_top (0)
-   1 | A RTTI
-       -- (A, 0) vtable address --
-   2 | void A::f0()
-   3 | void A::bar()
+   1 | Derived2 RTTI
+       -- (Base2, 0) vtable address --      // 子类的虚表地址，跟前面的一样，同时包含了 Base2 和 Derived2
+       -- (Derived2, 0) vtable address --
+   2 | void Base2::virtual_fun_in_Base2()   // 子类没有重载父类的方法，所以这里是父类的函数地址
+   3 | void Derived2::virtual_fun_in_Derived2()
 
-VTable indices for 'A' (2 entries).
-   0 | void A::f0()
-   1 | void A::bar()
-
-Original map
- void D::f0() -> void B::f0()
-Vtable for 'B' (10 entries).
-   0 | vbase_offset (16)
-   1 | offset_to_top (0)
-   2 | B RTTI
-       -- (B, 0) vtable address --
-   3 | void B::f0()
-   4 | vcall_offset (0)
-   5 | vcall_offset (-16)
-   6 | offset_to_top (-16)
-   7 | B RTTI
-       -- (A, 16) vtable address --
-   8 | void B::f0()
-       [this adjustment: 0 non-virtual, -24 vcall offset offset] method: void A::f0()
-   9 | void A::bar()
-
-Virtual base offset offsets for 'B' (1 entry).
-   A | -24
-
-Thunks for 'void B::f0()' (1 entry).
-   0 | this adjustment: 0 non-virtual, -24 vcall offset offset
-
-VTable indices for 'B' (1 entries).
-   0 | void B::f0()
+VTable indices for 'Derived2' (1 entries).
+   1 | void Derived2::virtual_fun_in_Derived2()
 
 Original map
- void D::f0() -> void B::f0()
-Vtable for 'C' (10 entries).
-   0 | vbase_offset (16)
-   1 | offset_to_top (0)
-   2 | C RTTI
-       -- (C, 0) vtable address --
-   3 | void C::f0()
-   4 | vcall_offset (0)
-   5 | vcall_offset (-16)
-   6 | offset_to_top (-16)
-   7 | C RTTI
-       -- (A, 16) vtable address --
-   8 | void C::f0()
-       [this adjustment: 0 non-virtual, -24 vcall offset offset] method: void A::f0()
-   9 | void A::bar()
+Vtable for 'Base2' (3 entries).
+   0 | offset_to_top (0)
+   1 | Base2 RTTI
+       -- (Base2, 0) vtable address --
+   2 | void Base2::virtual_fun_in_Base2()
 
-Virtual base offset offsets for 'C' (1 entry).
-   A | -24
-
-Thunks for 'void C::f0()' (1 entry).
-   0 | this adjustment: 0 non-virtual, -24 vcall offset offset
-
-VTable indices for 'C' (1 entries).
-   0 | void C::f0()
+VTable indices for 'Base2' (1 entries).
+   0 | void Base2::virtual_fun_in_Base2()
 ```
 
-另一个例子：
+### 一个父类为虚类，另一个父类也是虚类
 
-```c
-class Base
-{
+```C++
+class Base {
 public:
-    virtual void foo() = 0;
-    virtual void bar() = 0;
+    Base() {}
+    int a = 0;
+    int b = 0;
+    virtual void virtual_fun_in_Base() {}
 };
 
-class Der1 : public virtual Base
-{
+class Base2 {
 public:
-    virtual void foo();
+    virtual void virtual_fun_in_Base2() {}
+
+    int e = 0;
 };
 
-void Der1::foo()
-{
-    bar();
-}
-
-class Der2 : public virtual Base
-{
+class Derived2 : public Base, public Base2 {
 public:
-    virtual void bar()
-    {
-    }
+    virtual void virtual_fun_in_Base2() override {}
+    virtual void virtual_fun_in_Derived2() {}
+    double f = 0.0;
 };
-
-class Join : public Der1, public Der2
-{
-public:
-    // ...
-};
-
-int main()
-{
-    Join *p1 = new Join();
-    return 0;
-}
 ```
 
-使用命令编译：clang -cc1 -stdlib=libc++ -fdump-record-layouts -fdump-vtable-layouts -emit-llvm ./test.cpp
+输出： 
 
-```c
+```C++
+// clang -cc1 -std=c++11 -stdlib=libc++ -fdump-vtable-layouts -fdump-record-layouts -emit-llvm ./test.cpp
 *** Dumping AST Record Layout
          0 | class Base
          0 |   (Base vtable pointer)
-           | [sizeof=8, dsize=8, align=8,
-           |  nvsize=8, nvalign=8]
-
-*** Dumping AST Record Layout
-         0 | class Der1
-         0 |   class Base (primary virtual base)
-         0 |     (Base vtable pointer)
-           | [sizeof=8, dsize=8, align=8,
-           |  nvsize=8, nvalign=8]
-
-*** Dumping IRgen Record Layout
-Record: CXXRecordDecl 0x7ff083808300 <./test.cpp:1:1, line:6:1> line:1:7 referenced class Base definition
-|-DefinitionData polymorphic abstract literal has_constexpr_non_copy_move_ctor can_const_default_init
-| |-DefaultConstructor exists non_trivial constexpr needs_implicit defaulted_is_constexpr
-| |-CopyConstructor simple non_trivial has_const_param needs_implicit implicit_has_const_param
-| |-MoveConstructor exists simple non_trivial needs_implicit
-| |-CopyAssignment non_trivial has_const_param implicit_has_const_param
-| |-MoveAssignment exists simple non_trivial needs_implicit
-| `-Destructor simple irrelevant trivial
-|-CXXRecordDecl 0x7ff083808418 <col:1, col:7> col:7 implicit class Base
-|-AccessSpecDecl 0x7ff0838084a8 <line:3:1, col:7> col:1 public
-|-CXXMethodDecl 0x7ff083808518 <line:4:5, col:26> col:18 foo 'void ()' virtual pure
-|-CXXMethodDecl 0x7ff0838085d8 <line:5:5, col:26> col:18 referenced bar 'void ()' virtual pure
-|-CXXMethodDecl 0x7ff0838086d8 <line:1:7> col:7 implicit operator= 'Base &(const Base &)' inline default noexcept-unevaluated 0x7ff0838086d8
-| `-ParmVarDecl 0x7ff0838087e8 <col:7> col:7 'const Base &'
-`-CXXDestructorDecl 0x7ff083808870 <col:7> col:7 implicit ~Base 'void ()' inline default trivial noexcept-unevaluated 0x7ff083808870
-
-Layout: <CGRecordLayout
-  LLVMType:%class.Base = type { i32 (...)** }
-  NonVirtualBaseLLVMType:%class.Base = type { i32 (...)** }
-  IsZeroInitializable:1
-  BitFields:[
-]>
-
-*** Dumping IRgen Record Layout
-Record: CXXRecordDecl 0x7ff083808950 <./test.cpp:8:1, line:12:1> line:8:7 class Der1 definition
-|-DefinitionData polymorphic abstract can_const_default_init
-| |-DefaultConstructor exists non_trivial needs_implicit
-| |-CopyConstructor simple non_trivial has_const_param needs_implicit implicit_has_const_param
-| |-MoveConstructor exists simple non_trivial needs_implicit
-| |-CopyAssignment non_trivial has_const_param implicit_has_const_param
-| |-MoveAssignment exists simple non_trivial needs_implicit
-| `-Destructor simple irrelevant trivial
-|-virtual public 'Base'
-|-CXXRecordDecl 0x7ff083808ac0 <col:1, col:7> col:7 implicit class Der1
-|-AccessSpecDecl 0x7ff083808b50 <line:10:1, col:7> col:1 public
-|-CXXMethodDecl 0x7ff083808b98 <line:11:5, col:22> col:18 foo 'void ()' virtual
-| `-Overrides: [ 0x7ff083808518 Base::foo 'void ()' ]
-|-CXXMethodDecl 0x7ff083808c98 <line:8:7> col:7 implicit operator= 'Der1 &(const Der1 &)' inline default noexcept-unevaluated 0x7ff083808c98
-| `-ParmVarDecl 0x7ff083808da8 <col:7> col:7 'const Der1 &'
-`-CXXDestructorDecl 0x7ff083808e30 <col:7> col:7 implicit ~Der1 'void ()' inline default trivial noexcept-unevaluated 0x7ff083808e30
-
-Layout: <CGRecordLayout
-  LLVMType:%class.Der1 = type { %class.Base }
-  NonVirtualBaseLLVMType:%class.Der1 = type { %class.Base }
-  IsZeroInitializable:1
-  BitFields:[
-]>
-Original map
-Vtable for 'Base' (4 entries).
-   0 | offset_to_top (0)
-   1 | Base RTTI
-       -- (Base, 0) vtable address --
-   2 | void Base::foo() [pure]
-   3 | void Base::bar() [pure]
-
-VTable indices for 'Base' (2 entries).
-   0 | void Base::foo()
-   1 | void Base::bar()
-
-Original map
- void Der1::foo() -> void Base::foo()
-Vtable for 'Der1' (7 entries).
-   0 | vbase_offset (0)
-   1 | vcall_offset (0)
-   2 | vcall_offset (0)
-   3 | offset_to_top (0)
-   4 | Der1 RTTI
-       -- (Base, 0) vtable address --
-       -- (Der1, 0) vtable address --
-   5 | void Der1::foo()
-   6 | void Base::bar() [pure]
-
-Virtual base offset offsets for 'Der1' (1 entry).
-   Base | -40
-
-Thunks for 'void Der1::foo()' (1 entry).
-   0 | this adjustment: 0 non-virtual, -24 vcall offset offset
-
-VTable indices for 'Der1' (1 entries).
-   0 | void Der1::foo()
-
-
-*** Dumping AST Record Layout
-         0 | class Der2
-         0 |   class Base (primary virtual base)
-         0 |     (Base vtable pointer)
-           | [sizeof=8, dsize=8, align=8,
-           |  nvsize=8, nvalign=8]
-
-*** Dumping AST Record Layout
-         0 | class Join
-         0 |   class Der1 (primary base)
-         8 |   class Der2 (base)
-         0 |   class Base (virtual base)
-         0 |     (Base vtable pointer)
+         8 |   int a
+        12 |   int b
            | [sizeof=16, dsize=16, align=8,
            |  nvsize=16, nvalign=8]
 
-*** Dumping IRgen Record Layout
-Record: CXXRecordDecl 0x7ff083836590 <./test.cpp:19:1, line:25:1> line:19:7 referenced class Der2 definition
-|-DefinitionData polymorphic abstract can_const_default_init
-| |-DefaultConstructor exists non_trivial
-| |-CopyConstructor simple non_trivial has_const_param implicit_has_const_param
-| |-MoveConstructor exists simple non_trivial needs_implicit
-| |-CopyAssignment non_trivial has_const_param implicit_has_const_param
-| |-MoveAssignment exists simple non_trivial needs_implicit
-| `-Destructor simple irrelevant trivial
-|-virtual public 'Base'
-|-CXXRecordDecl 0x7ff083836700 <col:1, col:7> col:7 implicit class Der2
-|-AccessSpecDecl 0x7ff083836790 <line:21:1, col:7> col:1 public
-|-CXXMethodDecl 0x7ff0838367d8 <line:22:5, line:24:5> line:22:18 bar 'void ()' virtual
-| |-Overrides: [ 0x7ff0838085d8 Base::bar 'void ()' ]
-| `-CompoundStmt 0x7ff083836b78 <line:23:5, line:24:5>
-|-CXXMethodDecl 0x7ff0838368d8 <line:19:7> col:7 implicit operator= 'Der2 &(const Der2 &)' inline default noexcept-unevaluated 0x7ff0838368d8
-| `-ParmVarDecl 0x7ff0838369e8 <col:7> col:7 'const Der2 &'
-|-CXXDestructorDecl 0x7ff083836a70 <col:7> col:7 implicit ~Der2 'void ()' inline default trivial noexcept-unevaluated 0x7ff083836a70
-|-CXXConstructorDecl 0x7ff08300b350 <col:7> col:7 implicit used Der2 'void () throw()' inline default
-| `-CompoundStmt 0x7ff08287b898 <col:7>
-`-CXXConstructorDecl 0x7ff08287b718 <col:7> col:7 implicit Der2 'void (const Der2 &)' inline default noexcept-unevaluated 0x7ff08287b718
-  `-ParmVarDecl 0x7ff08287b828 <col:7> col:7 'const Der2 &'
+*** Dumping AST Record Layout
+         0 | class Base2
+         0 |   (Base2 vtable pointer)
+         8 |   int e
+           | [sizeof=16, dsize=12, align=8,
+           |  nvsize=12, nvalign=8]
 
-Layout: <CGRecordLayout
-  LLVMType:%class.Der2 = type { %class.Base }
-  NonVirtualBaseLLVMType:%class.Der2 = type { %class.Base }
-  IsZeroInitializable:1
-  BitFields:[
-]>
+*** Dumping AST Record Layout
+         0 | class Derived2
+         0 |   class Base (primary base)
+         0 |     (Base vtable pointer)
+         8 |     int a
+        12 |     int b
+        16 |   class Base2 (base)
+        16 |     (Base2 vtable pointer)
+        24 |     int e
+        32 |   double f
+           | [sizeof=40, dsize=40, align=8,
+           |  nvsize=40, nvalign=8]
 
-*** Dumping IRgen Record Layout
-Record: CXXRecordDecl 0x7ff083836b88 <./test.cpp:27:1, line:31:1> line:27:7 referenced class Join definition
-|-DefinitionData polymorphic can_const_default_init
-| |-DefaultConstructor exists non_trivial
-| |-CopyConstructor simple non_trivial has_const_param implicit_has_const_param
-| |-MoveConstructor exists simple non_trivial needs_implicit
-| |-CopyAssignment non_trivial has_const_param implicit_has_const_param
-| |-MoveAssignment exists simple non_trivial needs_implicit
-| `-Destructor simple irrelevant trivial
-|-public 'Der1'
-|-public 'Der2'
-|-CXXRecordDecl 0x7ff083836d40 <col:1, col:7> col:7 implicit class Join
-|-AccessSpecDecl 0x7ff083836dd0 <line:29:1, col:7> col:1 public
-|-CXXMethodDecl 0x7ff083836e58 <line:27:7> col:7 implicit operator= 'Join &(const Join &)' inline default noexcept-unevaluated 0x7ff083836e58
-| `-ParmVarDecl 0x7ff083836f68 <col:7> col:7 'const Join &'
-|-CXXDestructorDecl 0x7ff083836ff0 <col:7> col:7 implicit ~Join 'void ()' inline default trivial noexcept-unevaluated 0x7ff083836ff0
-|-CXXConstructorDecl 0x7ff08300afb8 <col:7> col:7 implicit used Join 'void () throw()' inline default
-| |-CXXCtorInitializer 'Base'
-| | `-CXXConstructExpr 0x7ff08300b6b8 <col:7> 'Base' 'void () throw()'
-| |-CXXCtorInitializer 'Der1'
-| | `-CXXConstructExpr 0x7ff08287b6b8 <col:7> 'Der1' 'void () throw()'
-| |-CXXCtorInitializer 'Der2'
-| | `-CXXConstructExpr 0x7ff08287b8a8 <col:7> 'Der2' 'void () throw()'
-| `-CompoundStmt 0x7ff08287b920 <col:7>
-`-CXXConstructorDecl 0x7ff08300b090 <col:7> col:7 implicit Join 'void (const Join &)' inline default noexcept-unevaluated 0x7ff08300b090
-  `-ParmVarDecl 0x7ff08300b1a8 <col:7> col:7 'const Join &'
-
-Layout: <CGRecordLayout
-  LLVMType:%class.Join = type { %class.Der1, %class.Der2 }
-  NonVirtualBaseLLVMType:%class.Join = type { %class.Der1, %class.Der2 }
-  IsZeroInitializable:1
-  BitFields:[
-]>
-Original map
- void Der2::bar() -> void Base::bar()
- void Der1::foo() -> void Base::foo()
-Vtable for 'Join' (14 entries).
-   0 | vbase_offset (0)
-   1 | vcall_offset (8)
-   2 | vcall_offset (0)
-   3 | offset_to_top (0)
-   4 | Join RTTI
-       -- (Base, 0) vtable address --
-       -- (Der1, 0) vtable address --
-       -- (Join, 0) vtable address --
-   5 | void Der1::foo()
-   6 | void Der2::bar()
-       [this adjustment: 0 non-virtual, -32 vcall offset offset] method: void Base::bar()
-   7 | vbase_offset (-8)
-   8 | vcall_offset (0)
-   9 | vcall_offset (-8)
-  10 | offset_to_top (-8)
-  11 | Join RTTI
-       -- (Der2, 8) vtable address --
-  12 | [unused] void Der1::foo()
-  13 | void Der2::bar()
-
-Virtual base offset offsets for 'Join' (1 entry).
-   Base | -40
-
+...
 
 Original map
- void Der2::bar() -> void Base::bar()
- void Der1::foo() -> void Base::foo()
-Construction vtable for ('Der1', 0) in 'Join' (7 entries).
-   0 | vbase_offset (0)
-   1 | vcall_offset (0)
-   2 | vcall_offset (0)
-   3 | offset_to_top (0)
-   4 | Der1 RTTI
-       -- (Base, 0) vtable address --
-       -- (Der1, 0) vtable address --
-   5 | void Der1::foo()
-   6 | void Base::bar() [pure]
+Vtable for 'Derived2' (8 entries).
+   0 | offset_to_top (0)
+   1 | Derived2 RTTI
+       -- (Base, 0) vtable address --           // 子类的虚表地址中第一个地址为第一个（虚类）父类 Base
+       -- (Derived2, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()         // 然后是虚类 Base 的第一个方法
+   3 | void Derived2::virtual_fun_in_Base2()    // 子类自身的方法接着按序排列
+   4 | void Derived2::virtual_fun_in_Derived2()
+   5 | offset_to_top (-16)                      // 出现 offset_to_top 非0值，这里表示另一个虚父类的开始
+   6 | Derived2 RTTI                            // 第二个虚父类的信息
+       -- (Base2, 16) vtable address --
+   7 | void Derived2::virtual_fun_in_Base2()    // 第二个父类的虚函数
+       [this adjustment: -16 non-virtual] method: void Base2::virtual_fun_in_Base2()
+
+Thunks for 'void Derived2::virtual_fun_in_Base2()' (1 entry).
+   0 | this adjustment: -16 non-virtual
+
+VTable indices for 'Derived2' (2 entries).
+   1 | void Derived2::virtual_fun_in_Base2()
+   2 | void Derived2::virtual_fun_in_Derived2()
 
 Original map
- void Der2::bar() -> void Base::bar()
- void Der1::foo() -> void Base::foo()
-Construction vtable for ('Der2', 8) in 'Join' (13 entries).
-   0 | vbase_offset (-8)
-   1 | vcall_offset (0)
-   2 | vcall_offset (-8)
-   3 | offset_to_top (0)
-   4 | Der2 RTTI
-       -- (Der2, 8) vtable address --
-   5 | [unused] void Base::foo() [pure]
-   6 | void Der2::bar()
-   7 | vcall_offset (8)
-   8 | vcall_offset (0)
-   9 | offset_to_top (8)
-  10 | Der2 RTTI
+Vtable for 'Base' (3 entries).
+   0 | offset_to_top (0)
+   1 | Base RTTI
        -- (Base, 0) vtable address --
-  11 | void Base::foo() [pure]
-  12 | void Der2::bar()
-       [this adjustment: 0 non-virtual, -32 vcall offset offset] method: void Base::bar()
+   2 | void Base::virtual_fun_in_Base()
+
+VTable indices for 'Base' (1 entries).
+   0 | void Base::virtual_fun_in_Base()
 
 Original map
- void Der2::bar() -> void Base::bar()
- void Der1::foo() -> void Base::foo()
-Vtable for 'Der2' (7 entries).
-   0 | vbase_offset (0)
-   1 | vcall_offset (0)
-   2 | vcall_offset (0)
-   3 | offset_to_top (0)
-   4 | Der2 RTTI
-       -- (Base, 0) vtable address --
-       -- (Der2, 0) vtable address --
-   5 | void Base::foo() [pure]
-   6 | void Der2::bar()
+Vtable for 'Base2' (3 entries).
+   0 | offset_to_top (0)
+   1 | Base2 RTTI
+       -- (Base2, 0) vtable address --
+   2 | void Base2::virtual_fun_in_Base2()
 
-Virtual base offset offsets for 'Der2' (1 entry).
-   Base | -40
-
-Thunks for 'void Der2::bar()' (1 entry).
-   0 | this adjustment: 0 non-virtual, -32 vcall offset offset
-
-VTable indices for 'Der2' (1 entries).
-   1 | void Der2::bar()
+VTable indices for 'Base2' (1 entries).
+   0 | void Base2::virtual_fun_in_Base2()
 ```
 
-## reference
+### 增加到3个父类看看
+
+```C++
+// clang -cc1 -std=c++11 -stdlib=libc++ -fdump-vtable-layouts -fdump-record-layouts -emit-llvm ./test.cpp
+class Base {
+public:
+    Base() {}
+    int a = 0;
+    int b = 0;
+    virtual void virtual_fun_in_Base() {}
+};
+
+class Base2 {
+public:
+    virtual void virtual_fun_in_Base2() {}
+
+    int e = 0;
+};
+
+class Base3 {
+public:
+    virtual void virtual_fun_in_Base3() {}
+
+    int g = 0;
+};
+
+class Derived3 : public Base, public Base2, public Base3 {
+public:
+    virtual void virtual_fun_in_Derived3() {}
+};
+```
+
+输出：
+
+```C++
+// clang -cc1 -std=c++11 -stdlib=libc++ -fdump-vtable-layouts -fdump-record-layouts -emit-llvm ./test.cpp
+
+*** Dumping AST Record Layout
+         0 | class Base
+         0 |   (Base vtable pointer)
+         8 |   int a
+        12 |   int b
+           | [sizeof=16, dsize=16, align=8,
+           |  nvsize=16, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class Base2
+         0 |   (Base2 vtable pointer)
+         8 |   int e
+           | [sizeof=16, dsize=12, align=8,
+           |  nvsize=12, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class Base3
+         0 |   (Base3 vtable pointer)
+         8 |   int g
+           | [sizeof=16, dsize=12, align=8,
+           |  nvsize=12, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class Derived3
+         0 |   class Base (primary base)
+         0 |     (Base vtable pointer)
+         8 |     int a
+        12 |     int b
+        16 |   class Base2 (base)
+        16 |     (Base2 vtable pointer)
+        24 |     int e
+        32 |   class Base3 (base)
+        32 |     (Base3 vtable pointer)
+        40 |     int g
+           | [sizeof=48, dsize=44, align=8,
+           |  nvsize=44, nvalign=8]
+
+...
+
+Original map
+Vtable for 'Derived3' (10 entries).
+   0 | offset_to_top (0)
+   1 | Derived3 RTTI                            // 父类 Base 放在第一位
+       -- (Base, 0) vtable address --
+       -- (Derived3, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()
+   3 | void Derived3::virtual_fun_in_Derived3()
+   4 | offset_to_top (-16)                      // 第二个虚父类 Base2
+   5 | Derived3 RTTI                            // 接着是 Base2 的虚表入口
+       -- (Base2, 16) vtable address --
+   6 | void Base2::virtual_fun_in_Base2()
+   7 | offset_to_top (-32)                      // 第三个虚父类
+   8 | Derived3 RTTI                            // 接着是 Base3 的虚表入口
+       -- (Base3, 32) vtable address --
+   9 | void Base3::virtual_fun_in_Base3()
+
+VTable indices for 'Derived3' (1 entries).
+   1 | void Derived3::virtual_fun_in_Derived3()
+
+Original map                                    // Base 的虚表结构
+Vtable for 'Base' (3 entries).
+   0 | offset_to_top (0)
+   1 | Base RTTI
+       -- (Base, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()
+
+VTable indices for 'Base' (1 entries).
+   0 | void Base::virtual_fun_in_Base()
+
+Original map                                    // Base2 的虚表结构
+Vtable for 'Base2' (3 entries).
+   0 | offset_to_top (0)
+   1 | Base2 RTTI
+       -- (Base2, 0) vtable address --
+   2 | void Base2::virtual_fun_in_Base2()
+
+VTable indices for 'Base2' (1 entries).
+   0 | void Base2::virtual_fun_in_Base2()
+
+Original map                                    // Base3 的虚表结构
+Vtable for 'Base3' (3 entries).
+   0 | offset_to_top (0)
+   1 | Base3 RTTI
+       -- (Base3, 0) vtable address --
+   2 | void Base3::virtual_fun_in_Base3()
+
+VTable indices for 'Base3' (1 entries).
+   0 | void Base3::virtual_fun_in_Base3()
+```
+
+### 子类虚表中偏移地址
+
+前面输出结果中 offset_to_top 的偏移地址看起来有些疑问，为什么偏移一个 16，一个 32 呢？
+
+```C++
+class Base {
+public:
+    Base() {}
+    int a = 0;
+    int b = 0;
+    virtual void virtual_fun_in_Base() {}
+};
+
+class Base2 {
+public:
+    virtual void virtual_fun_in_Base2() {}
+
+    int e = 0;
+    int base2_1 = 0;    // 这里新增三个成员变量，增大 Base2 的内存占用空间
+    int base2_2 = 0;
+    int base2_3 = 0;
+};
+
+class Base3 {
+public:
+    virtual void virtual_fun_in_Base3() {}
+
+    int g = 0;
+};
+
+class Derived3 : public Base, public Base2, public Base3 {
+public:
+    virtual void virtual_fun_in_Derived3() {}
+};
+```
+
+输出：
+
+```C++
+clang -cc1 -std=c++11 -stdlib=libc++ -fdump-vtable-layouts -fdump-record-layouts -emit-llvm ./test.cpp
+
+*** Dumping AST Record Layout
+         0 | class Base
+         0 |   (Base vtable pointer)
+         8 |   int a
+        12 |   int b
+           | [sizeof=16, dsize=16, align=8,
+           |  nvsize=16, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class Base2
+         0 |   (Base2 vtable pointer)
+         8 |   int e
+        12 |   int base2_1
+        16 |   int base2_2
+        20 |   int base2_3
+           | [sizeof=24, dsize=24, align=8,     // 这里的 sizeof 从之前的16，变成了 24.
+           |  nvsize=24, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class Base3
+         0 |   (Base3 vtable pointer)
+         8 |   int g
+           | [sizeof=16, dsize=12, align=8,
+           |  nvsize=12, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class Derived3
+         0 |   class Base (primary base)
+         0 |     (Base vtable pointer)
+         8 |     int a
+        12 |     int b
+        16 |   class Base2 (base)
+        16 |     (Base2 vtable pointer)
+        24 |     int e
+        28 |     int base2_1
+        32 |     int base2_2
+        36 |     int base2_3
+        40 |   class Base3 (base)
+        40 |     (Base3 vtable pointer)
+        48 |     int g
+           | [sizeof=56, dsize=52, align=8,
+           |  nvsize=52, nvalign=8]
+...
+
+Original map
+Vtable for 'Derived3' (10 entries).             // 子类虚表的布局
+   0 | offset_to_top (0)
+   1 | Derived3 RTTI
+       -- (Base, 0) vtable address --
+       -- (Derived3, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()
+   3 | void Derived3::virtual_fun_in_Derived3()
+   4 | offset_to_top (-16)                      // 偏移地址还是 -16
+   5 | Derived3 RTTI
+       -- (Base2, 16) vtable address --
+   6 | void Base2::virtual_fun_in_Base2()
+   7 | offset_to_top (-40)                      // 偏移地址从之前的 -32 变成了现在的 -40，相比之前正好多了新增的3个成员变量的空间
+   8 | Derived3 RTTI
+       -- (Base3, 40) vtable address --
+   9 | void Base3::virtual_fun_in_Base3()
+
+VTable indices for 'Derived3' (1 entries).
+   1 | void Derived3::virtual_fun_in_Derived3()
+
+Original map
+Vtable for 'Base' (3 entries).
+   0 | offset_to_top (0)
+   1 | Base RTTI
+       -- (Base, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()
+
+VTable indices for 'Base' (1 entries).
+   0 | void Base::virtual_fun_in_Base()
+
+Original map
+Vtable for 'Base2' (3 entries).
+   0 | offset_to_top (0)
+   1 | Base2 RTTI
+       -- (Base2, 0) vtable address --
+   2 | void Base2::virtual_fun_in_Base2()
+
+VTable indices for 'Base2' (1 entries).
+   0 | void Base2::virtual_fun_in_Base2()
+
+Original map
+Vtable for 'Base3' (3 entries).
+   0 | offset_to_top (0)
+   1 | Base3 RTTI
+       -- (Base3, 0) vtable address --
+   2 | void Base3::virtual_fun_in_Base3()
+
+VTable indices for 'Base3' (1 entries).
+   0 | void Base3::virtual_fun_in_Base3()
+```
+
+## 虚继承对象
+
+### 先看一下不使用虚继承的菱形继承
+
+```C++
+class Base {
+public:
+    Base() {}
+    int a = 0;
+    int b = 0;
+    virtual void virtual_fun_in_Base() {
+        a = 1;
+    }
+};
+
+
+class DerivedLeft :  public Base {
+public:
+    int left = 0;
+};
+
+class DerivedRight :  public Base {
+public:
+    int right = 0;
+};
+
+class Diamond : public DerivedLeft, public DerivedRight {
+public:
+};
+```
+
+```C++
+// clang -cc1 -std=c++11 -stdlib=libc++ -fdump-vtable-layouts -fdump-record-layouts -emit-llvm ./test.cpp
+
+*** Dumping AST Record Layout
+         0 | class Base
+         0 |   (Base vtable pointer)
+         8 |   int a
+        12 |   int b
+           | [sizeof=16, dsize=16, align=8,
+           |  nvsize=16, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class DerivedLeft
+         0 |   class Base (primary base)
+         0 |     (Base vtable pointer)
+         8 |     int a
+        12 |     int b
+        16 |   int left
+           | [sizeof=24, dsize=20, align=8,
+           |  nvsize=20, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class DerivedRight
+         0 |   class Base (primary base)
+         0 |     (Base vtable pointer)
+         8 |     int a
+        12 |     int b
+        16 |   int right
+           | [sizeof=24, dsize=20, align=8,
+           |  nvsize=20, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class Diamond
+         0 |   class DerivedLeft (primary base)     // 可以看到出现了 DerivedLeft 的内存结构
+         0 |     class Base (primary base)          // Base 的内存结构出现了一次
+         0 |       (Base vtable pointer)
+         8 |       int a
+        12 |       int b
+        16 |     int left
+        24 |   class DerivedRight (base)            // 可以看到出现了 DerivedRight 的内存结构
+        24 |     class Base (primary base)          // Base 的内存结构重复出现了
+        24 |       (Base vtable pointer)
+        32 |       int a
+        36 |       int b
+        40 |     int right
+           | [sizeof=48, dsize=44, align=8,
+           |  nvsize=44, nvalign=8]
+...
+Original map
+Vtable for 'Diamond' (6 entries).
+   0 | offset_to_top (0)
+   1 | Diamond RTTI
+       -- (Base, 0) vtable address --
+       -- (DerivedLeft, 0) vtable address --
+       -- (Diamond, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()
+   3 | offset_to_top (-24)
+   4 | Diamond RTTI
+       -- (Base, 24) vtable address --
+       -- (DerivedRight, 24) vtable address --
+   5 | void Base::virtual_fun_in_Base()
+
+
+Original map
+Vtable for 'DerivedLeft' (3 entries).
+   0 | offset_to_top (0)
+   1 | DerivedLeft RTTI
+       -- (Base, 0) vtable address --
+       -- (DerivedLeft, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()
+
+
+Original map
+Vtable for 'Base' (3 entries).
+   0 | offset_to_top (0)
+   1 | Base RTTI
+       -- (Base, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()
+
+VTable indices for 'Base' (1 entries).
+   0 | void Base::virtual_fun_in_Base()
+
+Original map
+Vtable for 'DerivedRight' (3 entries).
+   0 | offset_to_top (0)
+   1 | DerivedRight RTTI
+       -- (Base, 0) vtable address --
+       -- (DerivedRight, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()
+```
+
+### 在看一下使用虚继承的菱形继承
+
+```C++
+class Base {
+public:
+    Base() {}
+    int a = 0;
+    int b = 0;
+    virtual void virtual_fun_in_Base() {
+        a = 1;
+    }
+};
+
+class DerivedLeft : virtual public Base {
+public:
+    virtual void virtual_fun_in_Base() override {
+        a = 2;
+    }
+};
+
+class DerivedRight : virtual public Base {
+public:
+    virtual void virtual_fun_in_Base() override {
+        a = 3;
+    }
+};
+
+class Diamond : public DerivedLeft, public DerivedRight {
+public:
+    virtual void virtual_fun_in_Base() override {
+        a = 4;
+    }
+};
+```
+内存布局以及虚表结构：
+
+```C++
+// clang -cc1 -std=c++11 -stdlib=libc++ -fdump-vtable-layouts -fdump-record-layouts -emit-llvm ./test.cpp
+
+*** Dumping AST Record Layout
+         0 | class Base
+         0 |   (Base vtable pointer)
+         8 |   int a
+        12 |   int b
+           | [sizeof=16, dsize=16, align=8,
+           |  nvsize=16, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class DerivedLeft
+         0 |   (DerivedLeft vtable pointer)     // 虚继承的这个地方，出现了一个新的虚表地址
+         8 |   class Base (virtual base)        // 然后是父类的内存布局
+         8 |     (Base vtable pointer)
+        16 |     int a
+        20 |     int b
+           | [sizeof=24, dsize=24, align=8,
+           |  nvsize=8, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class DerivedRight
+         0 |   (DerivedRight vtable pointer)    // 同上
+         8 |   class Base (virtual base)
+         8 |     (Base vtable pointer)
+        16 |     int a
+        20 |     int b
+           | [sizeof=24, dsize=24, align=8,
+           |  nvsize=8, nvalign=8]
+
+*** Dumping AST Record Layout
+         0 | class Diamond
+         0 |   class DerivedLeft (primary base) // 继承了虚继承类的子类，这里按序将父类做了排列，第一个类仍然是主父类
+         0 |     (DerivedLeft vtable pointer)
+         8 |   class DerivedRight (base)        // 第二个父类的虚表地址，当然也是第二个父类的基地址
+         8 |     (DerivedRight vtable pointer)
+        16 |   class Base (virtual base)        // 然后是最顶部的父类
+        16 |     (Base vtable pointer)          // 这里父类的成员没有出现多次
+        24 |     int a
+        28 |     int b
+           | [sizeof=32, dsize=32, align=8,
+           |  nvsize=16, nvalign=8]
+...
+// 虚表结构
+Original map                                    // 子类的虚表结构
+ void Diamond::virtual_fun_in_Base() -> void DerivedLeft::virtual_fun_in_Base()
+Vtable for 'Diamond' (12 entries).
+   0 | vbase_offset (16)
+   1 | offset_to_top (0)
+   2 | Diamond RTTI
+       -- (DerivedLeft, 0) vtable address --
+       -- (Diamond, 0) vtable address --
+   3 | void Diamond::virtual_fun_in_Base()
+   4 | vbase_offset (8)
+   5 | offset_to_top (-8)
+   6 | Diamond RTTI
+       -- (DerivedRight, 8) vtable address --
+   7 | void Diamond::virtual_fun_in_Base()
+       [this adjustment: -8 non-virtual] method: void DerivedRight::virtual_fun_in_Base()
+   8 | vcall_offset (-16)
+   9 | offset_to_top (-16)
+  10 | Diamond RTTI
+       -- (Base, 16) vtable address --
+  11 | void Diamond::virtual_fun_in_Base()
+       [this adjustment: 0 non-virtual, -24 vcall offset offset] method: void Base::virtual_fun_in_Base()
+
+Virtual base offset offsets for 'Diamond' (1 entry).            // 首次新增的结构
+   Base | -24
+
+Thunks for 'void Diamond::virtual_fun_in_Base()' (2 entries).   // 首次新增的结构，使用了 Thunk 技术
+   0 | this adjustment: -8 non-virtual
+   1 | this adjustment: 0 non-virtual, -24 vcall offset offset
+
+VTable indices for 'Diamond' (1 entries).
+   0 | void Diamond::virtual_fun_in_Base()
+
+Original map
+ void Diamond::virtual_fun_in_Base() -> void DerivedLeft::virtual_fun_in_Base()
+Construction vtable for ('DerivedLeft', 0) in 'Diamond' (8 entries).
+   0 | vbase_offset (16)
+   1 | offset_to_top (0)
+   2 | DerivedLeft RTTI
+       -- (DerivedLeft, 0) vtable address --
+   3 | void DerivedLeft::virtual_fun_in_Base()
+   4 | vcall_offset (-16)
+   5 | offset_to_top (-16)
+   6 | DerivedLeft RTTI
+       -- (Base, 16) vtable address --
+   7 | void DerivedLeft::virtual_fun_in_Base()
+       [this adjustment: 0 non-virtual, -24 vcall offset offset] method: void Base::virtual_fun_in_Base()
+
+Original map
+ void Diamond::virtual_fun_in_Base() -> void DerivedLeft::virtual_fun_in_Base()
+Construction vtable for ('DerivedRight', 8) in 'Diamond' (8 entries).
+   0 | vbase_offset (8)
+   1 | offset_to_top (0)
+   2 | DerivedRight RTTI
+       -- (DerivedRight, 8) vtable address --
+   3 | void DerivedRight::virtual_fun_in_Base()
+   4 | vcall_offset (-8)
+   5 | offset_to_top (-8)
+   6 | DerivedRight RTTI
+       -- (Base, 16) vtable address --
+   7 | void DerivedRight::virtual_fun_in_Base()
+       [this adjustment: 0 non-virtual, -24 vcall offset offset] method: void Base::virtual_fun_in_Base()
+
+Original map
+ void Diamond::virtual_fun_in_Base() -> void DerivedLeft::virtual_fun_in_Base()
+Vtable for 'Base' (3 entries).
+   0 | offset_to_top (0)
+   1 | Base RTTI
+       -- (Base, 0) vtable address --
+   2 | void Base::virtual_fun_in_Base()
+
+VTable indices for 'Base' (1 entries).
+   0 | void Base::virtual_fun_in_Base()
+
+Original map
+ void Diamond::virtual_fun_in_Base() -> void DerivedLeft::virtual_fun_in_Base()
+Vtable for 'DerivedLeft' (8 entries).
+   0 | vbase_offset (8)
+   1 | offset_to_top (0)
+   2 | DerivedLeft RTTI
+       -- (DerivedLeft, 0) vtable address --
+   3 | void DerivedLeft::virtual_fun_in_Base()
+   4 | vcall_offset (-8)
+   5 | offset_to_top (-8)
+   6 | DerivedLeft RTTI
+       -- (Base, 8) vtable address --
+   7 | void DerivedLeft::virtual_fun_in_Base()
+       [this adjustment: 0 non-virtual, -24 vcall offset offset] method: void Base::virtual_fun_in_Base()
+
+Virtual base offset offsets for 'DerivedLeft' (1 entry).
+   Base | -24
+
+Thunks for 'void DerivedLeft::virtual_fun_in_Base()' (1 entry).
+   0 | this adjustment: 0 non-virtual, -24 vcall offset offset
+
+VTable indices for 'DerivedLeft' (1 entries).
+   0 | void DerivedLeft::virtual_fun_in_Base()
+
+Original map
+ void Diamond::virtual_fun_in_Base() -> void DerivedLeft::virtual_fun_in_Base()
+Vtable for 'DerivedRight' (8 entries).
+   0 | vbase_offset (8)
+   1 | offset_to_top (0)
+   2 | DerivedRight RTTI
+       -- (DerivedRight, 0) vtable address --
+   3 | void DerivedRight::virtual_fun_in_Base()
+   4 | vcall_offset (-8)
+   5 | offset_to_top (-8)
+   6 | DerivedRight RTTI
+       -- (Base, 8) vtable address --
+   7 | void DerivedRight::virtual_fun_in_Base()
+       [this adjustment: 0 non-virtual, -24 vcall offset offset] method: void Base::virtual_fun_in_Base()
+
+Virtual base offset offsets for 'DerivedRight' (1 entry).
+   Base | -24
+
+Thunks for 'void DerivedRight::virtual_fun_in_Base()' (1 entry).
+   0 | this adjustment: 0 non-virtual, -24 vcall offset offset
+
+VTable indices for 'DerivedRight' (1 entries).
+   0 | void DerivedRight::virtual_fun_in_Base()
+```
+
+*对于堆来讲，生长方向是向上的，也就是向着内存地址增加的方向；对于栈来讲，它的生长方式是向下的，是向着内存地址减小的方向增长。*
+
+
+# reference
 
 1. [C++中虚函数、虚继承内存模型](https://zhuanlan.zhihu.com/p/41309205) 介绍了虚继承的C\++对象内存布局
 2. [C.129: When designing a class hierarchy, distinguish between implementation inheritance and interface inheritance](https://www.modernescpp.com/index.php/c-core-guidelines-more-rules-to-class-hierarchies)
@@ -1056,3 +1587,4 @@ VTable indices for 'Der2' (1 entries).
 4. [【C++拾遗】 从内存布局看C++虚继承的实现原理](https://blog.csdn.net/Xiejingfa/article/details/48028491)
 5. [Solving the Diamond Problem with Virtual Inheritance](https://www.cprogramming.com/tutorial/virtual_inheritance.html)
 6. [What is the “dreaded diamond”?](https://isocpp.org/wiki/faq/multiple-inheritance#mi-diamond) 这是isocpp上的FAQ，该问答之后的几个问答都非常好。
+7. [Dumping a C++ object's memory layout with Clang](https://eli.thegreenplace.net/2012/12/17/dumping-a-c-objects-memory-layout-with-clang/)
