@@ -41,48 +41,12 @@ TODO: 参考《Windows核心编程》第五版的SEH那一章，关于SEH展开�
 # IOCP了解一下
 
 # shared_ptr是不是线程安全的？
-答：是“半”线程安全的，shared_ptr中只有控制部分使用了atomic变量，访问资源部分不是线程安全的。参考 [Atomic Smart Pointers](https://www.modernescpp.com/index.php/atomic-smart-pointers)
 
-测试下面的代码发现，没有问题
+shared_ptr 内部有两部分，一个是计数部分，一个是数据部分；计数部分由于使用了原子计数，故而是线程安全的；数据部分，并没有多线程同步的保护因而不是线程安全的。具体地说，shared_ptr 内部有 const 函数，也有非 const 函数，如果多个线程同时调用 const 函数，那么没有问题；如果多个线程同时调用 const （只读）和非 const 函数（写入）的话，那就可能出现访问问题了。可以参考腾讯技术的一篇文章：[C++常见避坑指南](https://mp.weixin.qq.com/s/ivmOl-qGALnHEVbwKANiug) 
 
-```cpp
-std::shared_ptr<int> ptr = std::make_shared<int>(2011);
+# 简述Windows上的消息循环
 
-for (auto i= 0; i<10; i++){
-   std::thread([ptr]{                           (1)
-     std::shared_ptr<int> localPtr(ptr);        (2)
-     localPtr= std::make_shared<int>(2014);     (3)
-    }).detach(); 
-}
-```
 
-但是，下面的代码就会在指针析构的时候崩溃
-
-```cpp
-std::shared_ptr<int> ptr = std::make_shared<int>(2011);  
-
-for (auto i= 0; i<10; i++){
-   std::thread([&ptr]{                         (1)
-     ptr= std::make_shared<int>(2014);         (2)
-   }).detach(); 
-}
-```
-
-即使为指针ptr的加上原子操作也不行:
-
-```cpp
-std::shared_ptr<int> ptr = std::make_shared<int>(2011);
-
-for (auto i =0;i<10;i++){
-   std::thread([&ptr]{ 
-     auto localPtr= std::make_shared<int>(2014);
-     std::atomic_store(&ptr, localPtr);            (1)
-   }).detach(); 
-}
-```
-
-**看不懂为什么？？？**
-测试发现，在VC++环境下，新建一个console程序，main函数中只写入上面的函数，并不会crash。但是在xcode中，写一个类似的console程序会crash。原因猜测是for循环外层创建的ptr在退出主线程的main之后被析构了，for循环内部的ptr被重新赋值，但是对应的地址被释放了。
 
 # 如何拦截其他进程的窗口消息
 
