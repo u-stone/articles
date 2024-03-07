@@ -132,6 +132,9 @@ M3U8 流
 - CCTV 6 直播流 ：http://ivi.bupt.edu.cn/hls/cctv6hd.m3u8
 - CCTV 8 直播流 ：http://ivi.bupt.edu.cn/hls/cctv8hd.m3u8
 
+## 测试视频资源
+- [sample-videos 网站](https://sample-videos.com/index.php)
+
 ## 常见格式
 - 来自 [灰色飘零](https://www.cnblogs.com/renhui/category/1165051.html) 的博客分类 **[多媒体文件格式](https://www.cnblogs.com/renhui/category/1393420.html)** 包含了mp4, flv, m3u8, ts文件格式，以及分析工具
 
