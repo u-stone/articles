@@ -26,8 +26,6 @@
 ```
 std::shared_ptr<int> pIntPtr(new int(10), 
     [](int *pi) { delete pi; }); // deleter 
-    
-
 ```
 
 ## C++14 才支持std::unique\_ptr捕捉
@@ -52,7 +50,7 @@ const成员函数中想要修改成员变量，还是使用mutable修饰符吧�
 
 ## C++ 11 中的 = delete
 
-*   \[Deleted default constructor. Objects can still be created... sometimes]\(<https://stackoverflow.com/questions/33988297/deleted-default-constructor-objects-can-still-be-created-som>
+*   [Deleted default constructor. Objects can still be created... sometimes](https://stackoverflow.com/questions/33988297/deleted-default-constructor-objects-can-still-be-created-som)
 
 ## C++11 中的互斥量
 
@@ -69,3 +67,19 @@ ref:
 
 ## 常见的锁
 
+## stack unwinding 是什么意思？
+
+C++ 中stack unwinding 一般跟异常关联。参考这个问题 [What is stack unwinding?](https://stackoverflow.com/questions/2331316/what-is-stack-unwinding/2332865#2332865) 的回答中提到的：
+
+> **Definition**: As you create objects statically (on the stack as opposed to allocating them in the heap memory) and perform function calls, they are "stacked up".
+> 
+> When a scope (anything delimited by { and }) is exited (by using return XXX;, reaching the end of the scope or throwing an exception) everything within that scope is destroyed (destructors are called for everything). **This process of destroying local objects and calling destructors is called stack unwinding.**
+> 
+
+调用栈展开（stack unwinding）一般是发生在异常发生时，为了保证资源正常释放，异常所在的scope中创建的对象，以及做的函数调用涉及到的资源需要做销毁和还原的过程。
+
+这里同时也就涉及到RAII，析构函数的异常安全问题。
+
+同时，也可以参考微软的文档：[Exceptions and Stack Unwinding in C++](https://learn.microsoft.com/en-us/cpp/cpp/exceptions-and-stack-unwinding-in-cpp?view=msvc-170)。还有一个示例代码。
+
+[Using noexcept](https://akrzemi1.wordpress.com/2011/06/10/using-noexcept/) 
