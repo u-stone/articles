@@ -46,7 +46,31 @@ shared_ptr 内部有两部分，一个是计数部分，一个是数据部分；
 
 # 简述Windows上的消息循环
 
+《Windows 核心编程》第四版的第26章 [窗口消息](./26%20窗口消息.pdf)，有关于消息循环的消息介绍。
 
+关于消息队列创建有这样的描述：
+
+> 当一个线程第一次被建立时，系统假定线程不会被用于任何与用户相关的任务。这样可以减少线程对系统资源的要求。但是，一旦这个线程调用一个与图形用户界面有关的函数（例如检查它的消息队列或建立一个窗口），系统就会为该线程分配一些另外的资源，以便它能够执行与用户界面有关的任务。特别是，系统分配一个 `THREADINFO` 结构，并将这个数据结构与线程联系起来。
+> 
+> 这个THREADINFO结构包含一组成员变量，利用这组成员，线程可以认为它是在自己独占的环境中运行。THREADINFO是一个内部的、未公开的数据结构，用来指定线程的登记消息队列（posted-message queue）、发送消息队列（ send-message queue）、应答消息队列（ reply-message queue）、虚拟输入队列（virtualized-input queue）、唤醒标志 （wake flag）、以及用来描述线程局部输入状态的若干变量。
+
+上面提到的检查消息队列对应的函数有：GetMessage 或者 PeekMessage。不过在 [`PostThreadMessage`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postthreadmessagea) 的 Remark 部分有提到，如果一个消息没有关联一个窗口的话，无法使用 `DispatchMessage` 函数分发消息。
+
+根据前面的描述，一个 Win32 线程拥有消息队列的话，一般是因为有如下动作：1. 创建了窗口，2. 调用了检查消息队列的 API。
+
+关于消息队列，参考 [Using Messages and Message Queues](https://learn.microsoft.com/en-us/windows/win32/winmsg/using-messages-and-message-queues)。
+
+消息队列的结构可以看一下这个图：
+
+<img src="./ThreadInfo.png" width="500">
+
+当一个线程调用 `GetMessage` 或者 `PeekMessage` 时，系统必须检查线程的队列状态标志的情况，并确定应该处理哪个消息。关于获取消息的算法，这里有一个图可以解释很多东西：
+
+<img src="./GetMessageAlg.png" width="650">
+
+# Windows上接受消息是否必须有窗口？
+
+不是的，比如 [`PostThreadMessage`](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-postthreadmessagea) 使用的场景。可以参考这篇文档里面的一个例子：[`使用PostThreadMessage在Win32线程间传递消息`](https://blog.csdn.net/jiangqin115/article/details/46986545)。不过接收消息必须有消息队列。根据前面提到的，一个线程拥有消息队列，不一定需要有窗口，只需要触发线程创建消息队列的逻辑（比如调用 `PeekMessage`）即可。
 
 # 如何拦截其他进程的窗口消息
 
@@ -62,7 +86,9 @@ shared_ptr 内部有两部分，一个是计数部分，一个是数据部分；
 
 找到一个关于进程注入的合集文章： **[Code & Process Injection](https://ired.team/offensive-security/code-injection-process-injection)**
 
-# win32窗口的子类化，超类化是如何实现的。
+`SetWinEventHook` 用来监控其它进程的窗口状态变化，不过无法**拦截**原始消息。
+
+# Win32 窗口的子类化，超类化是如何实现的。
 
 - [Subclassing Controls](https://learn.microsoft.com/en-us/windows/win32/controls/subclassing-overview)。
 - [窗口的子类化与超类化](http://www.cppblog.com/bigsml/archive/2007/08/24/30780.aspx)
@@ -85,6 +111,3 @@ shared_ptr 内部有两部分，一个是计数部分，一个是数据部分；
 
 ref: [Windows 窗口子类化和超类化](https://blog.csdn.net/xiaolongwang2010/article/details/10473151)
 
-# 线程与消息队列：ref《Windows核心编程》第四版 26章
-
-当一个线程第一次被建立时，系统假定线程不会被用于任何与用户相关的任务。这样可以减少线程对系统资源的要求。但是，一旦这个线程调用一个与图形用户界面有关的函数（例如检查它的消息队列或建立一个窗口），系统就会为该线程分配一些另外的资源，以便它能够执行与用户界面有关的任务。特别是，系统分配一个THREADINFO结构，并将这个数据结构与线程联系起来。这个THREADINFO结构包含一组成员变量，利用这组成员，线程可以认为它是在自己独占的环境中运行。THREADINFO是一个内部的、未公开的数据结构，用来指定线程的登记消息队列（posted-message queue）、发送消息队列（ send-message queue）、应答消息队列（ reply-message queue）、虚拟输入队列（virtualized-input queue）、唤醒标志 （wake flag）、以及用来描述线程局部输入状态的若干变量。

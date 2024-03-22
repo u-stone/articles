@@ -27,7 +27,7 @@ Herb   Sutter
 
       如果我们用异常捕捉和异常处理模块的话，一般的形式有两种：try-block和function-try-block。下面内容摘自[B.2] 15章：
 
-```
+```C++
 try-block:
       try compound-statement handler-seq
 function-try-block:
@@ -38,7 +38,7 @@ handler-seq:
 
       可以看出，try-block是用于普通的异常捕捉，而function-try-block是用于构造函数的初值化列表。不过我们很少见过后者：
 
-```
+```C++
 C::C()
 try
     :A(/*...*/)//代表基类

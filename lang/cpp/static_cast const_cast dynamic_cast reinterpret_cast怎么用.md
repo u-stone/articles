@@ -5,20 +5,29 @@
 static_cast
 --------------------------------------------------------------------------------
       从C语言走过来的码农都会对下面的代码熟悉：
+```C++
       float f = 3.14;
       int i = (int)f;
+```
       这就是C里面的强制转换。在C++里面这种转换的近亲就应该是static_cast了。按TCPL中所述“static_cast运算符完成相关类型之间的转换，比如同一个类层次结构中一个指针类型到另一个指针类型的转换，整型到枚举型、或者浮点型的转换等“；所以我在回答面试官进一步的提问的时候不知道怎么回答了，因为static_cast也会参与dynamic_cast的一些事儿啊……这里先留个疑问。
+
       对于reinterpret_cast的使用，TCPL中说”reinterpret_cast处理互不相关的类型之间的转换，例如从整数到指针，或者从一个指针到另一个毫不相干的指针类型“，当然这并不是reinterpret_cast的全部论述，作为和static_cast的对比这里先论述这一部分。
 
 const_cast
 --------------------------------------------------------------------------------
       const_cast的设计很简单，就是为了在const成员中提供例外，比如说在const成员函数中修改成员变量：
+
+```C++
       string Date::getDate()const{
           Date* th = const_cast<Date*>(this);
           th->changecache();
           return cache;
       }
+```
+
       你可能会想，该函数加上这个const修饰，结果在实现中又要去掉，这是“不守承诺”。但是如果是用来提升性能的，那么就有用了：
+
+```C++
       string Date::getDate()const{
           if (cachevalid == false){//需要的时候才重新计算cache
              Date* th = const_cast<Date*>(this);
@@ -27,21 +36,34 @@ const_cast
           }
           return cache;
       }
+```
+
       如果你认为干脆把getDate写成非const类型的，再使用cachevalid不是也可以吗？那么就要考虑下const提供了一个非const无法提供的承诺：一百年永不变！
+
       但是：
+
+```C++
       Date *pd;
       const Date * pcd;
       pd->getDate();//OK，没问题
       pcd->getDate(); //这个就是未定义的了，还要看具体的编译器实现。
+```
+
       好了，关于const_cast论述完毕。
 
 reinterpret_cast
 --------------------------------------------------------------------------------
       看这个名字你就应该猜个八九不离十，重新解释reinterpret。这个直接重新将给定的内存地址解释为某种类型。
+```C++
       SomeKindOfType *obj = reinterpret_cast<SomeKindOfType *>(0x100000);
+```
       像这样随便来一个地址，这家伙就可以给你重新解释该地址为一种类型的对象。真像是女娲造人一样，随便来一堆”泥巴“就可以造个”人“出来。TCPL中描述这种转换为最粗鲁的……没错，它就是这么不管不顾！
+
       所以，以后像这种要把某一个内存地址看做某种类型对象的事，第一个使用的就是这个reinterpret_cast莫属了。在此之后你可以再做其他转换，比如说static_cast，dynamic_cast。比如：
+
+```C++
       static_cast<Base*>(reinterpret_cast<void*>(0xF0F0));
+```
 
 dynamic_cast
 --------------------------------------------------------------------------------
@@ -52,6 +74,7 @@ dynamic_cast
 转换前后对象的变化
 --------------------------------------------------------------------------------
       在这四种转换中转换前后的访问控制规则都是不变的。所以：
+```C++
       class B : protected A{
           ....
       };
@@ -60,6 +83,7 @@ dynamic_cast
             A* pA =pB;// 错误，转换虽然存在但是，不能访问A中受保护成员
             A* pA2 = dynamic_cast<A*>(pB);//虽然可以通过编译，即编译期间正确，但是运行时转换失败返回0，即pA2为0
       }
+```
       所以这里例子也引出了一个static_cast和dynamic_cast之间的区别：static_cast是编译期检查类型是否正确的，而dynamic_cast是运行期检查的。
       除了const_cast之外，其他的3个类型转换也不改变对象的const, volatile性质。
 
